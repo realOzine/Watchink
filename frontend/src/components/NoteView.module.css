@@ -1,0 +1,183 @@
+/* Note typography: this is the page people actually read. */
+.note {
+  max-width: 44em;
+  margin: 0 auto;
+  padding: 28px 28px 80px;
+  font-size: 16.5px;
+  line-height: 1.85;
+  color: var(--text);
+  overflow-wrap: break-word;
+  line-break: strict;
+  text-align: start;
+}
+.note h1 {
+  font-family: var(--font-serif);
+  font-size: 1.75em;
+  line-height: 1.35;
+  font-weight: 700;
+  margin: 0 0 0.5em;
+  letter-spacing: 0.005em;
+}
+.note h2 {
+  font-family: var(--font-serif);
+  font-size: 1.3em;
+  line-height: 1.45;
+  font-weight: 700;
+  margin: 2.1em 0 0.6em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--border);
+}
+.note h3 {
+  font-size: 1.08em;
+  font-weight: 700;
+  margin: 1.6em 0 0.4em;
+}
+.note h4,
+.note h5,
+.note h6 {
+  font-size: 1em;
+  margin: 1.3em 0 0.3em;
+}
+.note p {
+  margin: 0 0 1em;
+}
+.note ul,
+.note ol {
+  margin: 0 0 1.1em;
+  padding-left: 1.5em;
+}
+.note li {
+  margin: 0.35em 0;
+}
+.note li::marker {
+  color: var(--muted);
+}
+.note li > p {
+  margin: 0;
+}
+.note strong {
+  font-weight: 700;
+}
+.note blockquote {
+  margin: 0 0 1.4em;
+  padding: 0.1em 0 0.1em 1em;
+  border-left: 3px solid var(--border-strong);
+  color: var(--text-2);
+  font-size: 0.92em;
+}
+.note blockquote p:last-child {
+  margin-bottom: 0;
+}
+.note code {
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
+  background: var(--surface-2);
+  font-size: 0.82em;
+  color: var(--text-2);
+}
+.note h2 code {
+  margin-left: 0.4em;
+  font-size: 0.62em;
+  font-weight: 400;
+  vertical-align: 0.1em;
+  white-space: nowrap;
+}
+.note pre {
+  margin: 0 0 1.2em;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  overflow-x: auto;
+  line-height: 1.55;
+}
+.note pre code {
+  padding: 0;
+  background: none;
+}
+.note hr {
+  margin: 2em 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+.tableWrap {
+  margin: 0 0 1.4em;
+  overflow-x: auto;
+}
+.note table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92em;
+  line-height: 1.6;
+}
+.note th,
+.note td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+.note th {
+  font-weight: 600;
+  color: var(--text-2);
+  white-space: nowrap;
+  border-bottom-color: var(--border-strong);
+}
+
+.cite {
+  display: inline-block;
+  margin: 0 0.12em;
+  padding: 0 0.5em;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.74em;
+  line-height: 1.75;
+  font-variant-numeric: tabular-nums;
+  vertical-align: 0.12em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.cite:hover,
+.cite:focus-visible {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.citeMissing {
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: help;
+}
+.popover {
+  position: fixed;
+  z-index: 60;
+  width: min(340px, calc(100vw - 24px));
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-family: var(--font-ui);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text);
+  white-space: normal;
+  text-align: left;
+  pointer-events: none;
+}
+.popoverTime {
+  display: block;
+  margin-bottom: 2px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+@media (max-width: 760px) {
+  .note {
+    padding: 20px 16px 64px;
+    font-size: 16px;
+  }
+}

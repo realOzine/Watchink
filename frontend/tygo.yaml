@@ -1,0 +1,17 @@
+# Generates src/api/types.ts from the frozen Go contract (internal/app).
+# Run from the repo root: `pnpm gen:types` (see package.json).
+packages:
+  - path: "watchink/internal/app"
+    output_path: "frontend/src/api/types.ts"
+    include_files:
+      - "dto.go"
+      - "settings.go"
+      - "errors.go"
+    exclude_files: []
+    optional_type: "null"
+    # Both `omitempty` fields (absent on the wire) and pointer fields (JSON
+    # null) come out as `T | null`; always test them with `== null` / `!= null`.
+    frontmatter: |
+      /* eslint-disable */
+      // Wire types of the Watchink engine API (snake_case JSON).
+      // Fields typed `T | null` may be JSON null OR absent: compare with `== null`.

@@ -1,0 +1,26 @@
+[watchink:task=map]
+视频标题：{{.Title}}
+当前分块：第 {{.Index}} 块{{if .Count}}（共 {{.Count}} 块）{{end}}，时间范围 {{.Range}}
+
+上一块末尾的字幕（只用于理解上下文，不可引用）：
+<<<CONTEXT
+{{- range .Context}}
+{{.}}
+{{- end}}
+CONTEXT>>>
+
+本块可引用的字幕（每行格式：编号 [起止时间] 文本）：
+<<<CITABLE
+{{- range .Citable}}
+{{.}}
+{{- end}}
+CITABLE>>>
+
+请整理本块内容并输出 JSON，字段要求如下：
+- chunk_summary：用 2–4 句话概括本块讲了什么。
+- points：本块的要点，按讲述顺序排列，覆盖本块的全部主要内容，不要只挑开头。通常 3–10 个；如果本块几乎没有实质内容（例如只有寒暄、静音或音乐），可以为空数组。每个要点包含：
+  - title：不超过 30 字的标题；
+  - detail：1–4 句说明，写清楚讲者具体讲了什么；
+  - kind：concept（概念）、definition（定义）、method（方法或步骤）、example（例子）、conclusion（结论）、caution（注意事项）、other（其他）之一；
+  - cites：1–5 个支撑该要点的片段编号，只能来自 CITABLE 块，例如 ["{{.ExampleCite}}"]。
+- terms：本块出现的重要术语，最多 5 个，没有则为空数组。每个术语包含 term（术语原文）、explanation（一句中文解释，依据字幕）和 cites（1–3 个出处编号）。

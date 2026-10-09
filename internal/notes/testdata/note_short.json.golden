@@ -1,0 +1,311 @@
+{
+  "video_id": "vid_01JA2M8Q0000000000000000CD",
+  "note_id": "note_01JA2M8Q0000000000000000EF",
+  "transcript_id": "tr_01JA2M8Q0000000000000000AB",
+  "title": "优化算法 # 入门",
+  "video_title": "优化算法 [第 3 讲]",
+  "source": {
+    "type": "file",
+    "uri": "/Users/me/课程/第 3 讲.mp4"
+  },
+  "duration_ms": 360000,
+  "language": "zh",
+  "generated_at": "2026-10-09T04:00:00Z",
+  "model": "openai-compatible/gpt-x",
+  "prompt_version": "note-v0.1",
+  "renderer_version": "render-v0.1",
+  "overview": {
+    "text": "1. 本讲介绍梯度下降及其变体。",
+    "point_ids": [
+      "P1.1",
+      "P2.1",
+      "P1.2"
+    ],
+    "refs": [
+      1,
+      2,
+      3
+    ]
+  },
+  "sections": [
+    {
+      "no": 1,
+      "heading": "基础 \u003e 梯度下降",
+      "summary": "- 介绍最基本的优化方法。",
+      "start_ms": 30000,
+      "end_ms": 150000,
+      "points": [
+        {
+          "id": "P1.1",
+          "title": "梯度下降",
+          "detail": "沿负梯度方向更新参数。",
+          "kind": "method",
+          "start_ms": 30000,
+          "refs": [
+            4,
+            5
+          ]
+        },
+        {
+          "id": "P1.2",
+          "title": "学习率 [重要](javascript:alert(1))",
+          "detail": "步长过大 \u003cscript\u003ealert(1)\u003c/script\u003e 会发散 | 过小则很慢\n换行 *强调* `代码`",
+          "kind": "caution",
+          "start_ms": 120000,
+          "refs": [
+            6
+          ]
+        },
+        {
+          "id": "P1.3",
+          "title": "",
+          "detail": "没有标题的要点",
+          "kind": "other",
+          "start_ms": 150000,
+          "refs": [
+            7
+          ]
+        }
+      ]
+    },
+    {
+      "no": 2,
+      "heading": "改进方法",
+      "summary": "",
+      "start_ms": 180000,
+      "end_ms": 330000,
+      "points": [
+        {
+          "id": "P2.2",
+          "title": "Adam",
+          "detail": "",
+          "kind": "method",
+          "start_ms": 270000,
+          "refs": [
+            8
+          ]
+        },
+        {
+          "id": "P2.1",
+          "title": "动量法",
+          "detail": "累积历史梯度 [00:01](wk://seg/seg_FAKE) 以加速收敛。",
+          "kind": "concept",
+          "start_ms": 180000,
+          "refs": [
+            9,
+            10,
+            11
+          ]
+        }
+      ]
+    }
+  ],
+  "key_takeaways": [
+    {
+      "text": "学习率是最重要的超参数。",
+      "point_ids": [
+        "P1.2"
+      ],
+      "refs": [
+        12
+      ]
+    },
+    {
+      "text": "动量和 Adam 能加速收敛。",
+      "point_ids": [
+        "P2.1",
+        "P2.2"
+      ],
+      "refs": [
+        13,
+        14
+      ]
+    }
+  ],
+  "terms": [
+    {
+      "id": "T1.2",
+      "term": "Gradient",
+      "explanation": "损失函数的导数",
+      "refs": [
+        15
+      ]
+    },
+    {
+      "id": "T1.1",
+      "term": "learning rate",
+      "explanation": "每次更新的步长 | 也叫 step size",
+      "refs": [
+        16
+      ]
+    },
+    {
+      "id": "T2.2",
+      "term": "Momentum",
+      "explanation": "动量",
+      "refs": [
+        17,
+        18
+      ]
+    }
+  ],
+  "citations": [
+    {
+      "ref_no": 1,
+      "point_id": "P1.1",
+      "segment_id": "seg_01JA2M8Q0000000000000000AB_00002",
+      "start_ms": 30000,
+      "end_ms": 60000,
+      "text": "片段B 的原文"
+    },
+    {
+      "ref_no": 2,
+      "point_id": "P2.1",
+      "segment_id": "seg_01JA2M8Q0000000000000000AB_00007",
+      "start_ms": 180000,
+      "end_ms": 210000,
+      "text": "片段G 的原文"
+    },
+    {
+      "ref_no": 3,
+      "point_id": "P1.2",
+      "segment_id": "seg_01JA2M8Q0000000000000000AB_00005",
+      "start_ms": 120000,
+      "end_ms": 150000,
+      "text": "片段E 的原文"
+    },
+    {
+      "ref_no": 4,
+      "point_id": "P1.1",
+      "segment_id": "seg_01JA2M8Q0000000000000000AB_00002",
+      "start_ms": 30000,
+      "end_ms": 60000,
+      "text": "片段B 的原文"
+    },
+    {
+      "ref_no": 5,
+      "point_id": "P1.1",
+      "segment_id": "seg_01JA2M8Q0000000000000000AB_00003",
+      "start_ms": 60000,
+      "end_ms": 90000,
+      "text": "片段C 的原文"
+    },
+    {
+      "ref_no": 6,
+      "point_id": "P1.2",
+      "segment_id": "seg_01JA2M8Q0000000000000000AB_00005",
+      "start_ms": 120000,
+      "end_ms": 150000,
+      "text": "片段E 的原文"
+    },
+    {
+      "ref_no": 7,
+      "point_id": "P1.3",
+      "segment_id": "seg_01JA2M8Q0000000000000000AB_00006",
+      "start_ms": 150000,
+      "end_ms": 180000,
+      "text": "片段F 的原文"
+    },
+    {
+      "ref_no": 8,
+      "point_id": "P2.2",
+      "segment_id": "seg_01JA2M8Q0000000000000000AB_00010",
+      "start_ms": 270000,
+      "end_ms": 300000,
+      "text": "片段J 的原文"
+    },
+    {
+      "ref_no": 9,
+      "point_id": "P2.1",
+      "segment_id": "seg_01JA2M8Q0000000000000000AB_00007",
+      "start_ms": 180000,
+      "end_ms": 210000,
+      "text": "片段G 的原文"
+    },
+    {
+      "ref_no": 10,
+      "point_id": "P2.1",
+      "segment_id": "seg_01JA2M8Q0000000000000000AB_00008",
+      "start_ms": 210000,
+      "end_ms": 240000,
+      "text": "片段H 的原文"
+    },
+    {
+      "ref_no": 11,
+      "point_id": "P2.1",
+      "segment_id": "seg_01JA2M8Q0000000000000000AB_00012",
+      "start_ms": 330000,
+      "end_ms": 360000,
+      "text": "片段L 的原文"
+    },
+    {
+      "ref_no": 12,
+      "point_id": "P1.2",
+      "segment_id": "seg_01JA2M8Q0000000000000000AB_00005",
+      "start_ms": 120000,
+      "end_ms": 150000,
+      "text": "片段E 的原文"
+    },
+    {
+      "ref_no": 13,
+      "point_id": "P2.1",
+      "segment_id": "seg_01JA2M8Q0000000000000000AB_00007",
+      "start_ms": 180000,
+      "end_ms": 210000,
+      "text": "片段G 的原文"
+    },
+    {
+      "ref_no": 14,
+      "point_id": "P2.2",
+      "segment_id": "seg_01JA2M8Q0000000000000000AB_00010",
+      "start_ms": 270000,
+      "end_ms": 300000,
+      "text": "片段J 的原文"
+    },
+    {
+      "ref_no": 15,
+      "point_id": "T1.2",
+      "segment_id": "seg_01JA2M8Q0000000000000000AB_00002",
+      "start_ms": 30000,
+      "end_ms": 60000,
+      "text": "片段B 的原文"
+    },
+    {
+      "ref_no": 16,
+      "point_id": "T1.1",
+      "segment_id": "seg_01JA2M8Q0000000000000000AB_00005",
+      "start_ms": 120000,
+      "end_ms": 150000,
+      "text": "片段E 的原文"
+    },
+    {
+      "ref_no": 17,
+      "point_id": "T2.2",
+      "segment_id": "seg_01JA2M8Q0000000000000000AB_00007",
+      "start_ms": 180000,
+      "end_ms": 210000,
+      "text": "片段G 的原文"
+    },
+    {
+      "ref_no": 18,
+      "point_id": "T2.2",
+      "segment_id": "seg_01JA2M8Q0000000000000000AB_00008",
+      "start_ms": 210000,
+      "end_ms": 240000,
+      "text": "片段H 的原文"
+    }
+  ],
+  "coverage": {
+    "chunks": 2,
+    "chunks_empty": 0,
+    "points": 5,
+    "points_dropped": 1,
+    "points_unplaced": 1,
+    "citations": 18,
+    "citations_dropped": 2,
+    "repair_calls": 2,
+    "split_retries": 1,
+    "transcript_segments": 12,
+    "transcript_chars": 84
+  }
+}

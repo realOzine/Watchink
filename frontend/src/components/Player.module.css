@@ -1,0 +1,63 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+.frame {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  max-height: 100%;
+  border-radius: var(--radius);
+  background: #0c0d0f;
+  overflow: hidden;
+}
+.video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #0c0d0f;
+}
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  text-align: center;
+  color: #e8e6e1;
+  background: #0c0d0f;
+}
+.overlayTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+}
+.overlayHint {
+  max-width: 34em;
+  font-size: 13px;
+  color: #a9a7a1;
+}
+.position {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: #cfcdc7;
+}
+.caption {
+  min-height: 3.2em;
+  padding: 8px 12px;
+  border-left: 3px solid var(--accent);
+  background: var(--surface);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: 14px;
+  color: var(--text-2);
+}
+.captionLabel {
+  display: block;
+  font-size: 11.5px;
+  color: var(--muted);
+}

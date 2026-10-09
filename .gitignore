@@ -12,3 +12,4 @@ node_modules/
 /.devdata/
 *.test
 *.out
+/.claude/worktrees/

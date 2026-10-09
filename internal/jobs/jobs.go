@@ -307,17 +307,23 @@ func (s *Scheduler) ToDTO(j *store.JobWithStages) app.Job {
 	return toDTO(j, defs)
 }
 
-func toDTO(j *store.JobWithStages, defs []StageDef) app.Job {
-	type entry struct {
-		row      *store.JobStage
-		weight   float64
-		excluded bool
-	}
-	entries := make([]entry, 0, len(j.Stages))
+// weightedStage is a stage row with its share of the overall progress.
+type weightedStage struct {
+	row      *store.JobStage
+	weight   float64
+	excluded bool // playback: shown, but not part of the overall progress
+}
+
+// weightedStages pairs the stage rows with the weights of their definitions,
+// in definition order. Rows without a definition (a stage removed by a newer
+// build) come last with no weight; when nothing has a weight every stage
+// counts equally. total is the sum of the weights that count.
+func weightedStages(j *store.JobWithStages, defs []StageDef) (entries []weightedStage, total float64) {
+	entries = make([]weightedStage, 0, len(j.Stages))
 	used := make(map[string]bool, len(j.Stages))
 	for _, d := range defs {
 		if row := j.Stage(d.Name); row != nil {
-			entries = append(entries, entry{row, max(d.Weight, 0), d.ExcludeFromProgress})
+			entries = append(entries, weightedStage{row, max(d.Weight, 0), d.ExcludeFromProgress})
 			used[d.Name] = true
 		}
 	}
@@ -327,10 +333,9 @@ func toDTO(j *store.JobWithStages, defs []StageDef) app.Job {
 			if len(defs) == 0 {
 				w = 1
 			}
-			entries = append(entries, entry{&j.Stages[i], w, false})
+			entries = append(entries, weightedStage{&j.Stages[i], w, false})
 		}
 	}
-	total := 0.0
 	for _, e := range entries {
 		if !e.excluded {
 			total += e.weight
@@ -344,7 +349,13 @@ func toDTO(j *store.JobWithStages, defs []StageDef) app.Job {
 			}
 		}
 	}
+	return entries, total
+}
 
+// toDTO builds the job DTO: stages in DAG order, the weighted overall
+// progress of §7.2, and the stage the job is currently at.
+func toDTO(j *store.JobWithStages, defs []StageDef) app.Job {
+	entries, total := weightedStages(j, defs)
 	out := app.Job{
 		JobID: j.ID, Kind: j.Kind, VideoID: strPtr(j.VideoID), Status: j.Status, Rev: j.Rev, Attempt: j.Attempt,
 		Stages: make([]app.JobStage, 0, len(entries)), Error: j.Error, Result: j.Result,

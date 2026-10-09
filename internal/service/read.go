@@ -86,12 +86,15 @@ func (s *Service) GetNote(ctx context.Context, req app.GetNoteRequest) (*app.Not
 	if err != nil {
 		return nil, err
 	}
-	cites, err := s.st.ListCitations(ctx, n.ID)
+	cites, err := s.citations.get(n.ID, func() ([]app.Citation, error) {
+		cites, err := s.st.ListCitations(ctx, n.ID)
+		if cites == nil {
+			cites = []app.Citation{}
+		}
+		return cites, err
+	})
 	if err != nil {
 		return nil, err
-	}
-	if cites == nil {
-		cites = []app.Citation{}
 	}
 	out := &app.Note{
 		NoteID: n.ID, VideoID: n.VideoID, TranscriptID: n.TranscriptID, Version: n.Version, Title: n.Title, Format: format,
@@ -102,24 +105,102 @@ func (s *Service) GetNote(ctx context.Context, req app.GetNoteRequest) (*app.Not
 	return out, nil
 }
 
-// GetTranscript implements app.Service.
-func (s *Service) GetTranscript(ctx context.Context, req app.GetTranscriptRequest) (*app.Transcript, error) {
+// transcriptSegments returns the requested part of a transcript version in
+// idx order: the listed segment IDs (IDs of other versions are not part of
+// the answer), the segments overlapping [start_ms, end_ms), or everything.
+//
+// A transcript version never changes, so a full read is cached and later
+// requests for the same transcript are answered from memory. A partial read
+// of a transcript that is not cached goes to the indexed query instead of
+// loading every row: paging through a video nobody has opened stays cheap.
+func (s *Service) transcriptSegments(ctx context.Context, transcriptID string, req app.GetTranscriptRequest) ([]app.Segment, error) {
+	partial := len(req.SegmentIDs) > 0 || req.StartMs != nil || req.EndMs != nil
+	if all, ok := s.segments.peek(transcriptID); ok {
+		return selectSegments(all, req), nil
+	}
+	if !partial {
+		return s.segments.get(transcriptID, func() ([]app.Segment, error) {
+			rows, err := s.st.Segments(ctx, transcriptID)
+			return segmentDTOs(rows, ""), err
+		})
+	}
+	if len(req.SegmentIDs) > 0 {
+		rows, err := s.st.SegmentsByIDs(ctx, req.SegmentIDs)
+		return segmentDTOs(rows, transcriptID), err
+	}
+	rows, err := s.st.SegmentsInRange(ctx, transcriptID, req.StartMs, req.EndMs, 0)
+	return segmentDTOs(rows, ""), err
+}
+
+// segmentDTOs converts rows, keeping only those of onlyTranscript when set.
+func segmentDTOs(rows []store.Segment, onlyTranscript string) []app.Segment {
+	out := make([]app.Segment, 0, len(rows))
+	for _, r := range rows {
+		if onlyTranscript == "" || r.TranscriptID == onlyTranscript {
+			out = append(out, r.DTO())
+		}
+	}
+	return out
+}
+
+// selectSegments is the in-memory equivalent of the two partial queries.
+func selectSegments(all []app.Segment, req app.GetTranscriptRequest) []app.Segment {
+	if len(req.SegmentIDs) > 0 {
+		want := make(map[string]bool, len(req.SegmentIDs))
+		for _, id := range req.SegmentIDs {
+			want[id] = true
+		}
+		var out []app.Segment
+		for _, seg := range all {
+			if want[seg.SegmentID] {
+				out = append(out, seg)
+			}
+		}
+		return out
+	}
+	if req.StartMs == nil && req.EndMs == nil {
+		return all
+	}
+	var out []app.Segment
+	for _, seg := range all {
+		if req.StartMs != nil && seg.EndMs <= *req.StartMs {
+			continue
+		}
+		if req.EndMs != nil && seg.StartMs >= *req.EndMs {
+			continue
+		}
+		out = append(out, seg)
+	}
+	return out
+}
+
+// transcriptFormat validates a transcript request and returns its format.
+func transcriptFormat(req app.GetTranscriptRequest) (string, error) {
 	format := req.Format
 	switch format {
 	case "":
 		format = app.FormatJSON
 	case app.FormatJSON, app.FormatSRT, app.FormatVTT, app.FormatTXT:
 	default:
-		return nil, app.E(app.CodeInvalidArgument, "format 只能是 json、srt、vtt 或 txt")
+		return "", app.E(app.CodeInvalidArgument, "format 只能是 json、srt、vtt 或 txt")
 	}
 	if len(req.SegmentIDs) > app.MaxSegmentIDs {
-		return nil, app.E(app.CodeInvalidArgument, "segment_ids 最多 %d 个", app.MaxSegmentIDs)
+		return "", app.E(app.CodeInvalidArgument, "segment_ids 最多 %d 个", app.MaxSegmentIDs)
 	}
 	if len(req.SegmentIDs) > 0 && (req.StartMs != nil || req.EndMs != nil) {
-		return nil, app.E(app.CodeInvalidArgument, "segment_ids 不能与 start_ms / end_ms 同时使用")
+		return "", app.E(app.CodeInvalidArgument, "segment_ids 不能与 start_ms / end_ms 同时使用")
 	}
 	if req.StartMs != nil && req.EndMs != nil && *req.EndMs <= *req.StartMs {
-		return nil, app.E(app.CodeInvalidArgument, "end_ms 必须大于 start_ms")
+		return "", app.E(app.CodeInvalidArgument, "end_ms 必须大于 start_ms")
+	}
+	return format, nil
+}
+
+// GetTranscript implements app.Service.
+func (s *Service) GetTranscript(ctx context.Context, req app.GetTranscriptRequest) (*app.Transcript, error) {
+	format, err := transcriptFormat(req)
+	if err != nil {
+		return nil, err
 	}
 	v, err := s.st.GetVideo(ctx, req.VideoID)
 	if err != nil {
@@ -132,20 +213,8 @@ func (s *Service) GetTranscript(ctx context.Context, req app.GetTranscriptReques
 	if err != nil {
 		return nil, err
 	}
-	var rows []store.Segment
-	if len(req.SegmentIDs) > 0 {
-		if rows, err = s.st.SegmentsByIDs(ctx, req.SegmentIDs); err != nil {
-			return nil, err
-		}
-		// IDs of another transcript version are not part of this answer.
-		kept := rows[:0]
-		for _, r := range rows {
-			if r.TranscriptID == tr.ID {
-				kept = append(kept, r)
-			}
-		}
-		rows = kept
-	} else if rows, err = s.st.SegmentsInRange(ctx, tr.ID, req.StartMs, req.EndMs, 0); err != nil {
+	rows, err := s.transcriptSegments(ctx, tr.ID, req)
+	if err != nil {
 		return nil, err
 	}
 	out := &app.Transcript{
@@ -167,7 +236,7 @@ func (s *Service) GetTranscript(ctx context.Context, req app.GetTranscriptReques
 			break
 		}
 		chars += n
-		out.Segments = append(out.Segments, r.DTO())
+		out.Segments = append(out.Segments, r)
 	}
 	switch format {
 	case app.FormatSRT:

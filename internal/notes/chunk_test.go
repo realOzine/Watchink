@@ -230,3 +230,16 @@ func TestFormatTime(t *testing.T) {
 		t.Error("IsLong boundary wrong")
 	}
 }
+
+// TestOneLineFastPath pins the shortcut to the full rewrite: a string is
+// returned untouched only when the rewrite would not change it.
+func TestOneLineFastPath(t *testing.T) {
+	for _, s := range []string{
+		"", "a", "两个 词", "a b c", " leading", "trailing ", "double  space", "tab\there", "line\nbreak",
+		"nbsp\u00a0here", "ctrl\x07bell", "bad\xffutf8", "ideographic\u3000space", "emoji 🙂 ok",
+	} {
+		if got := isOneLine(s); got != (rewriteOneLine(s) == s) {
+			t.Errorf("isOneLine(%q) = %v, but the rewrite gives %q", s, got, rewriteOneLine(s))
+		}
+	}
+}

@@ -48,6 +48,11 @@ type Service struct {
 
 	mediaKey []byte
 
+	// Immutable rows kept in memory; see cache.go. Slices handed out by
+	// these caches are shared and must not be modified.
+	citations *lru[[]app.Citation] // by note ID
+	segments  *lru[[]app.Segment]  // by transcript ID, in idx order
+
 	mu       sync.RWMutex
 	settings app.Settings
 	baseURL  string
@@ -73,7 +78,8 @@ func Open(ctx context.Context, opts Options) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Service{dataDir: opts.DataDir, log: log, addSecret: opts.AddSecret, st: st, bus: events.New(0), settings: cfg, mediaKey: make([]byte, 32)}
+	s := &Service{dataDir: opts.DataDir, log: log, addSecret: opts.AddSecret, st: st, bus: events.New(0), settings: cfg, mediaKey: make([]byte, 32),
+		citations: newLRU[[]app.Citation](64), segments: newLRU[[]app.Segment](16)}
 	if _, err := rand.Read(s.mediaKey); err != nil {
 		st.Close()
 		return nil, err

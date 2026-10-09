@@ -81,9 +81,13 @@ func (s *Service) ListVideos(ctx context.Context, req app.ListVideosRequest) (*a
 	if err != nil {
 		return nil, err
 	}
+	playback, err := s.st.ListArtifactsOfVideos(ctx, ids, store.KindPlayback)
+	if err != nil {
+		return nil, err
+	}
 	out := &app.VideoList{Videos: make([]app.Video, len(rows))}
 	for i, r := range rows {
-		out.Videos[i] = s.videoDTO(ctx, r, latest[r.ID])
+		out.Videos[i] = s.videoDTO(r, latest[r.ID], s.usable(playback[r.ID]) != nil)
 	}
 	if next != "" {
 		out.NextCursor = &next
@@ -101,16 +105,16 @@ func (s *Service) GetVideo(ctx context.Context, videoID string) (*app.Video, err
 	if err != nil {
 		return nil, err
 	}
-	dto := s.videoDTO(ctx, v, latest)
+	dto := s.videoDTO(v, latest, s.playbackArtifact(ctx, videoID) != nil)
 	return &dto, nil
 }
 
-func (s *Service) videoDTO(ctx context.Context, v *store.Video, latest *store.JobWithStages) app.Video {
+func (s *Service) videoDTO(v *store.Video, latest *store.JobWithStages, playbackReady bool) app.Video {
 	dto := app.Video{
 		VideoID: v.ID, Title: v.Title, Source: pipeline.VideoSource(v), DurationMs: v.DurationMs,
 		Language: strPtr(v.Language), TranscriptID: strPtr(v.CurrentTranscriptID), NoteID: strPtr(v.CurrentNoteID),
 		WebURL: s.base() + "/videos/" + v.ID, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt,
-		PlaybackReady: s.playbackArtifact(ctx, v.ID) != nil,
+		PlaybackReady: playbackReady,
 	}
 	// §13.2: status is derived from the latest job and the current note.
 	dto.Status = app.VideoProcessing
@@ -145,6 +149,11 @@ func (s *Service) playbackArtifact(ctx context.Context, videoID string) *store.A
 	if err != nil {
 		return nil
 	}
+	return s.usable(arts)
+}
+
+// usable returns the newest artifact whose file is still on disk.
+func (s *Service) usable(arts []*store.Artifact) *store.Artifact {
 	for i := len(arts) - 1; i >= 0; i-- {
 		if s.st.ArtifactPresent(arts[i]) {
 			return arts[i]

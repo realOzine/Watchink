@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"watchink/internal/app"
 )
@@ -199,9 +200,39 @@ func FormatTime(ms int64, long bool) string {
 // IsLong reports whether times of a video of this duration use H:MM:SS.
 func IsLong(durationMs int64) bool { return durationMs >= time.Hour.Milliseconds() }
 
+// isOneLine reports whether s is already what oneLine would return: no
+// control characters, no whitespace other than single interior spaces. ASR
+// output almost always is, which lets the exporters skip the rewrite.
+func isOneLine(s string) bool {
+	prevSpace := true // a leading space is not allowed
+	for _, r := range s {
+		if r == ' ' {
+			if prevSpace {
+				return false
+			}
+			prevSpace = true
+			continue
+		}
+		// RuneError: strings.Map would rewrite invalid UTF-8, so take the
+		// slow path.
+		if unicode.IsSpace(r) || unicode.IsControl(r) || r == utf8.RuneError {
+			return false
+		}
+		prevSpace = false
+	}
+	return s == "" || !prevSpace
+}
+
 // oneLine collapses all whitespace (including newlines) and drops control
 // characters, so a piece of text can never span lines.
 func oneLine(s string) string {
+	if isOneLine(s) {
+		return s
+	}
+	return rewriteOneLine(s)
+}
+
+func rewriteOneLine(s string) string {
 	s = strings.Map(func(r rune) rune {
 		if unicode.IsSpace(r) {
 			return ' '

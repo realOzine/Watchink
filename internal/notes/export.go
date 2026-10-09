@@ -78,11 +78,40 @@ func ExportMarkdown(canonicalMD string, source app.VideoSource, citations []app.
 	return b.String()
 }
 
-func cueTime(ms int64, sep byte) string {
+// writeCueTime appends HH:MM:SS<sep>mmm. Subtitle export writes two of
+// these per segment, so it avoids fmt (see BenchmarkText in internal/bench).
+func writeCueTime(b *strings.Builder, ms int64, sep byte) {
 	if ms < 0 {
 		ms = 0
 	}
-	return fmt.Sprintf("%02d:%02d:%02d%c%03d", ms/3600000, ms/60000%60, ms/1000%60, sep, ms%1000)
+	h := ms / 3600000
+	if h < 10 {
+		b.WriteByte('0')
+	}
+	b.WriteString(strconv.FormatInt(h, 10))
+	m, sec, milli := ms/60000%60, ms/1000%60, ms%1000
+	b.Write([]byte{':', byte('0' + m/10), byte('0' + m%10), ':', byte('0' + sec/10), byte('0' + sec%10), sep,
+		byte('0' + milli/100), byte('0' + milli/10%10), byte('0' + milli%10)})
+}
+
+// writeCue appends "start --> end\ntext\n\n".
+func writeCue(b *strings.Builder, s app.Segment, sep byte, text string) {
+	start, end := cueBounds(s)
+	writeCueTime(b, start, sep)
+	b.WriteString(" --> ")
+	writeCueTime(b, end, sep)
+	b.WriteByte('\n')
+	b.WriteString(text)
+	b.WriteString("\n\n")
+}
+
+// textBytes sizes the output buffer of the subtitle writers.
+func textBytes(segs []app.Segment) int {
+	n := 0
+	for _, s := range segs {
+		n += len(s.Text)
+	}
+	return n
 }
 
 // cueBounds returns the cue times of a segment, with a strictly positive
@@ -99,6 +128,7 @@ func cueBounds(s app.Segment) (start, end int64) {
 // are numbered consecutively from 1.
 func SRT(segs []app.Segment) string {
 	var b strings.Builder
+	b.Grow(textBytes(segs) + len(segs)*40)
 	n := 0
 	for _, s := range segs {
 		text := oneLine(s.Text)
@@ -106,8 +136,9 @@ func SRT(segs []app.Segment) string {
 			continue
 		}
 		n++
-		start, end := cueBounds(s)
-		fmt.Fprintf(&b, "%d\n%s --> %s\n%s\n\n", n, cueTime(start, ','), cueTime(end, ','), text)
+		b.WriteString(strconv.Itoa(n))
+		b.WriteByte('\n')
+		writeCue(&b, s, ',', text)
 	}
 	return b.String()
 }
@@ -118,14 +149,14 @@ var vttEscaper = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
 // neither tags nor the "-->" cue separator.
 func VTT(segs []app.Segment) string {
 	var b strings.Builder
+	b.Grow(textBytes(segs) + len(segs)*34 + 8)
 	b.WriteString("WEBVTT\n\n")
 	for _, s := range segs {
 		text := oneLine(s.Text)
 		if text == "" {
 			continue
 		}
-		start, end := cueBounds(s)
-		fmt.Fprintf(&b, "%s --> %s\n%s\n\n", cueTime(start, '.'), cueTime(end, '.'), vttEscaper.Replace(text))
+		writeCue(&b, s, '.', vttEscaper.Replace(text))
 	}
 	return b.String()
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"slices"
 
 	"watchink/internal/app"
 )
@@ -139,4 +140,23 @@ func (q *Queries) MarkArtifactPurged(ctx context.Context, id string) error {
 		return notFound("产物", id)
 	}
 	return nil
+}
+
+// ListArtifactsOfVideos returns the artifacts of one kind for many videos in
+// a single query, oldest first per video, keyed by video ID. Listings use it
+// instead of one ListArtifacts call per row.
+func (q *Queries) ListArtifactsOfVideos(ctx context.Context, videoIDs []string, kind string) (map[string][]*Artifact, error) {
+	out := make(map[string][]*Artifact, len(videoIDs))
+	for chunk := range slices.Chunk(videoIDs, 500) {
+		args := append(anySlice(chunk), kind)
+		arts, err := queryAll(ctx, q, scanArtifact,
+			`SELECT `+artifactCols+` FROM artifacts WHERE video_id IN (`+placeholders(len(chunk))+`) AND kind = ? ORDER BY id`, args...)
+		if err != nil {
+			return nil, err
+		}
+		for _, a := range arts {
+			out[a.VideoID] = append(out[a.VideoID], a)
+		}
+	}
+	return out, nil
 }

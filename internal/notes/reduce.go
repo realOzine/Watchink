@@ -488,6 +488,27 @@ func (r *reducer) reduceGroup(g group, part string) ([]Section, error) {
 // title, overview and takeaways, optionally merging adjacent sections by id.
 func (r *reducer) twoLevel() ([]Section, frame, error) {
 	r.stats.TwoLevel = true
+	secs, err := r.reduceGroups()
+	if err != nil {
+		return nil, frame{}, err
+	}
+	out, err := r.askFinal(secs)
+	if err != nil {
+		return nil, frame{}, err
+	}
+	return r.applyMerges(secs, out.Merges), frame{out.Title, out.Overview, out.KeyTakeaways}, nil
+}
+
+// idSection is a first-level section with the ID ("G2.1") the final call
+// uses to refer to it.
+type idSection struct {
+	id string
+	Section
+}
+
+// reduceGroups is level one: split the points into groups in time order and
+// reduce each group to sections.
+func (r *reducer) reduceGroups() ([]idSection, error) {
 	limit := groupMaxPoints
 	groups := r.groups(limit)
 	// When two-level was forced by a failed single call, make sure the input
@@ -498,26 +519,26 @@ func (r *reducer) twoLevel() ([]Section, frame, error) {
 	}
 	r.stats.Groups = len(groups)
 
-	type idSection struct {
-		id string
-		Section
-	}
 	var secs []idSection
 	for gi, g := range groups {
 		part := fmt.Sprintf("第 %d 部分（共 %d 部分），%s–%s", gi+1, len(groups),
 			FormatTime(g.points[0].StartMs, r.long), FormatTime(g.points[len(g.points)-1].EndMs, r.long))
 		got, err := r.reduceGroup(g, part)
 		if err != nil {
-			return nil, frame{}, err
+			return nil, err
 		}
 		for si, s := range got {
 			secs = append(secs, idSection{fmt.Sprintf("G%d.%d", gi+1, si+1), s})
 		}
 	}
+	return secs, nil
+}
 
-	// Final call. Section lines carry their point ids and titles so the
-	// overview and takeaways can cite points; when that is too long, fewer
-	// points per section are listed.
+// askFinal is level two: one call that sees only the sections and produces
+// the title, overview, takeaways and section merges. Section lines carry
+// their point ids and titles so the overview and takeaways can cite points;
+// when that is too long, fewer points per section are listed.
+func (r *reducer) askFinal(secs []idSection) (*finalOutput, error) {
 	build := func(perSection int) string {
 		var lines []string
 		for _, s := range secs {
@@ -533,57 +554,37 @@ func (r *reducer) twoLevel() ([]Section, frame, error) {
 		return renderPrompt("final_user.tmpl", map[string]any{
 			"Title": promptText(r.in.VideoTitle), "Duration": FormatTime(r.in.DurationMs, r.long), "Sections": lines})
 	}
-	caps := []int{0, 3, 1} // 0 = all points
-	var out *finalOutput
+	caps := []int{0, 3, 1} // points listed per section; 0 = all
 	for i, perSection := range caps {
+		last := i == len(caps)-1
 		user := build(perSection)
-		if i < len(caps)-1 && EstimateTokens(user) > twoLevelTokens {
+		if !last && EstimateTokens(user) > twoLevelTokens {
 			continue
 		}
-		var err error
-		out, err = askJSON[finalOutput](r.ctx, r.c, &r.st, r.system, user, finalSchema, reduceMaxTokens)
+		out, err := askJSON[finalOutput](r.ctx, r.c, &r.st, r.system, user, finalSchema, reduceMaxTokens)
+		if errors.Is(err, errNeedSplit) && !last {
+			continue
+		}
 		if errors.Is(err, errNeedSplit) {
-			if i < len(caps)-1 {
-				continue
-			}
-			return nil, frame{}, tooLargeError()
+			return nil, tooLargeError()
 		}
-		if err != nil {
-			return nil, frame{}, err
-		}
-		break
+		return out, err
 	}
+	return nil, tooLargeError() // unreachable: the last cap always returns
+}
 
-	// Apply merges: only known, unused, adjacent sections may be merged.
+// applyMerges joins the sections the final call asked to merge. A merge is
+// honoured only when it names at least two known, not yet merged, adjacent
+// sections; anything else is ignored, so no point can be lost or duplicated.
+func (r *reducer) applyMerges(secs []idSection, merges []outMerge) []Section {
 	pos := map[string]int{}
 	for i, s := range secs {
 		pos[s.id] = i
 	}
-	mergedInto := make([]int, len(secs)) // index of the section this one merges into
-	for i := range mergedInto {
-		mergedInto[i] = i
-	}
+	absorbed := make([]bool, len(secs)) // merged into an earlier section
 	used := map[int]bool{}
-	for _, m := range out.Merges {
-		var idx []int
-		ok := len(m.SectionIDs) >= 2
-		for _, raw := range m.SectionIDs {
-			i, known := pos[strings.ToUpper(strings.TrimSpace(raw))]
-			if !known || used[i] {
-				ok = false
-				break
-			}
-			idx = append(idx, i)
-		}
-		if !ok {
-			continue
-		}
-		sort.Ints(idx)
-		for k := 1; k < len(idx); k++ {
-			if idx[k] != idx[k-1]+1 {
-				ok = false
-			}
-		}
+	for _, m := range merges {
+		idx, ok := mergeTargets(m.SectionIDs, pos, used)
 		if !ok {
 			continue
 		}
@@ -591,7 +592,7 @@ func (r *reducer) twoLevel() ([]Section, frame, error) {
 		used[idx[0]] = true
 		for _, i := range idx[1:] {
 			used[i] = true
-			mergedInto[i] = idx[0]
+			absorbed[i] = true
 			first.PointIDs = append(first.PointIDs, secs[i].PointIDs...)
 			if s := secs[i].Summary; s != "" {
 				first.Summary = strings.TrimSpace(first.Summary + " " + s)
@@ -607,9 +608,32 @@ func (r *reducer) twoLevel() ([]Section, frame, error) {
 	}
 	var sections []Section
 	for i, s := range secs {
-		if mergedInto[i] == i {
+		if !absorbed[i] {
 			sections = append(sections, s.Section)
 		}
 	}
-	return sections, frame{out.Title, out.Overview, out.KeyTakeaways}, nil
+	return sections
+}
+
+// mergeTargets resolves the section IDs of one merge to sorted indexes and
+// reports whether the merge is valid.
+func mergeTargets(ids []string, pos map[string]int, used map[int]bool) ([]int, bool) {
+	if len(ids) < 2 {
+		return nil, false
+	}
+	idx := make([]int, 0, len(ids))
+	for _, raw := range ids {
+		i, known := pos[strings.ToUpper(strings.TrimSpace(raw))]
+		if !known || used[i] {
+			return nil, false
+		}
+		idx = append(idx, i)
+	}
+	sort.Ints(idx)
+	for k := 1; k < len(idx); k++ {
+		if idx[k] != idx[k-1]+1 {
+			return nil, false
+		}
+	}
+	return idx, true
 }

@@ -2,7 +2,9 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
+	"sync"
 	"testing"
 
 	"watchink/internal/app"
@@ -76,5 +78,36 @@ func TestLRU(t *testing.T) {
 	}
 	if !reflect.DeepEqual(len(c.items), c.order.Len()) || c.order.Len() > 2 {
 		t.Errorf("cache holds %d entries, cap is 2", c.order.Len())
+	}
+}
+
+// TestLRUConcurrent hammers a tiny cache from many goroutines so that hits,
+// misses, duplicate loads of one key and evictions all interleave. Every
+// caller must get the value of its own key, and the cache must stay within
+// its capacity. Run with -race.
+func TestLRUConcurrent(t *testing.T) {
+	c := newLRU[string](4)
+	var wg sync.WaitGroup
+	for g := 0; g < 16; g++ {
+		wg.Add(1)
+		go func(g int) {
+			defer wg.Done()
+			for i := 0; i < 2000; i++ {
+				key := fmt.Sprintf("k%d", (g+i)%9) // 9 keys, 4 slots: constant eviction
+				v, err := c.get(key, func() (string, error) { return "v-" + key, nil })
+				if err != nil || v != "v-"+key {
+					t.Errorf("get(%s) = %q, %v", key, v, err)
+					return
+				}
+				if v, ok := c.peek(key); ok && v != "v-"+key {
+					t.Errorf("peek(%s) = %q", key, v)
+					return
+				}
+			}
+		}(g)
+	}
+	wg.Wait()
+	if c.order.Len() > 4 || len(c.items) != c.order.Len() {
+		t.Errorf("cache holds %d entries (%d indexed), cap is 4", c.order.Len(), len(c.items))
 	}
 }

@@ -146,6 +146,8 @@ cmd/watchink ── 装配
 
 读取笔记是另一条更短的路径：`service.GetNote`（`service/read.go`）从 `store` 取笔记版本、读产物文件、附上引用表和 coverage。
 
+读取路径上有一处缓存（`service/cache.go`）：字幕版本和笔记版本一经生成就不可变，所以引用表和完整字幕各有一个小的 LRU，不需要任何失效逻辑。只读一部分字幕（时间窗口或指定片段）而该字幕不在缓存里时，仍走数据库的索引查询，不会为此加载全部片段。
+
 ## 6. 调度器 `jobs`
 
 调度器不认识“视频”，只认识任务、阶段、资源和产物指纹。
@@ -334,6 +336,8 @@ make desktop        # 前端 + whisper-cli + cgo 构建，组装并 ad-hoc 签�
 make test lint      # Go 测试、gofmt、go vet（含 desktop 标签）
 cd frontend && corepack pnpm test && corepack pnpm e2e
 scripts/e2e-macos.sh  # 真实 ffmpeg / whisper + 假模型的端到端检查（需要已安装工具和模型）
+go test -run '^$' -bench . -benchmem ./internal/bench   # 基准测试
+go run ./internal/bench/cmd/loadtest                    # 并发 HTTP 压测
 ```
 
 测试的层次：

@@ -5,13 +5,10 @@ package procx
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
@@ -25,30 +22,6 @@ const guardPollInterval = 250 * time.Millisecond
 // signal to -pid reaches the tool and everything it spawned (§5.5).
 func setProcessGroup(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-}
-
-func terminateGroup(pgid int) error { return signalGroup(pgid, unix.SIGTERM) }
-
-func killGroup(pgid int) error { return signalGroup(pgid, unix.SIGKILL) }
-
-func signalGroup(pgid int, sig unix.Signal) error {
-	if pgid <= 1 {
-		return fmt.Errorf("procx: refusing to signal process group %d", pgid)
-	}
-	err := unix.Kill(-pgid, sig)
-	if errors.Is(err, unix.ESRCH) {
-		return nil
-	}
-	return err
-}
-
-// groupAlive reports whether any process is left in the group.
-func groupAlive(pgid int) bool {
-	if pgid <= 1 {
-		return false
-	}
-	err := unix.Kill(-pgid, 0)
-	return err == nil || errors.Is(err, unix.EPERM)
 }
 
 // processInfo returns the executable path and argv of pid, read from the
@@ -82,24 +55,6 @@ func processInfo(pid int) (exe string, argv []string, ok bool) {
 	return exe, argv, true
 }
 
-func samePath(a, b string) bool {
-	if a == "" || b == "" {
-		return false
-	}
-	if ra, err := filepath.EvalSymlinks(a); err == nil {
-		a = ra
-	}
-	if rb, err := filepath.EvalSymlinks(b); err == nil {
-		b = rb
-	}
-	if filepath.Clean(a) == filepath.Clean(b) {
-		return true
-	}
-	sa, errA := os.Stat(a)
-	sb, errB := os.Stat(b)
-	return errA == nil && errB == nil && os.SameFile(sa, sb)
-}
-
 // KillIfMatches kills a child left over from a previous engine, but only when
 // the process with that pid still runs the recorded executable (§7.6 step 3):
 // a recycled pid must never be killed. It returns true when a kill was sent.
@@ -120,20 +75,7 @@ func KillIfMatches(pid int, exe string) (bool, error) {
 			return false, nil
 		}
 	}
-	// Children are started as group leaders, so take the whole tree with them.
-	if pgid, err := unix.Getpgid(pid); err == nil && pgid == pid {
-		if err := unix.Kill(-pid, unix.SIGKILL); err != nil && !errors.Is(err, unix.ESRCH) {
-			return false, err
-		}
-		return true, nil
-	}
-	if err := unix.Kill(pid, unix.SIGKILL); err != nil {
-		if errors.Is(err, unix.ESRCH) {
-			return false, nil
-		}
-		return false, err
-	}
-	return true, nil
+	return killTree(pid)
 }
 
 // GuardMain implements the hidden `watchink _guard [--] <path> <args...>`
@@ -223,46 +165,10 @@ func guardExitCode(cmd *exec.Cmd) int {
 	return ps.ExitCode()
 }
 
-// SpawnDetached starts a fully detached background process: new session, no
-// controlling terminal, stdio on /dev/null. It is used to launch
-// `watchink engine run` from a client (§5.2). A nil env inherits the
-// caller's environment. The process is not waited for.
-func SpawnDetached(exe string, args []string, env []string) error {
-	devnull, err := os.OpenFile(os.DevNull, os.O_RDWR, 0)
-	if err != nil {
-		return err
-	}
-	defer devnull.Close()
-	cmd := exec.Command(exe, args...)
-	cmd.Env = env
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = devnull, devnull, devnull
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("procx: spawn %s: %w", filepath.Base(exe), err)
-	}
-	return cmd.Process.Release()
-}
+func openURL(u string) error { return runOpen(u) }
 
-// OpenBrowser opens an http(s) URL in the default browser.
-func OpenBrowser(rawURL string) error {
-	u, err := url.Parse(rawURL)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return fmt.Errorf("procx: refusing to open non-http URL")
-	}
-	return runOpen(u.String())
-}
-
-// RevealInFileManager selects path in Finder. The caller is responsible for
-// restricting path to the data directory (§15).
-func RevealInFileManager(path string) error {
-	if !filepath.IsAbs(path) {
-		return fmt.Errorf("procx: reveal needs an absolute path")
-	}
-	if _, err := os.Lstat(path); err != nil {
-		return err
-	}
-	return runOpen("-R", path)
-}
+// revealPath selects path in Finder.
+func revealPath(path string) error { return runOpen("-R", path) }
 
 func runOpen(args ...string) error {
 	cmd := exec.Command("/usr/bin/open", args...)

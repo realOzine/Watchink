@@ -934,6 +934,14 @@ func TestDefaultManifest(t *testing.T) {
 			t.Errorf("%s darwin-arm64 entry is not pinned: %+v", name, p)
 		}
 	}
+	for _, name := range []string{ToolFFmpeg, ToolFFprobe, ToolYtDlp, ToolDeno} {
+		// BtbN's "latest" release is rebuilt daily; only a dated autobuild
+		// tag keeps the same bytes.
+		p, ok := mf.Tools[name].Platforms["linux-amd64"]
+		if !ok || !strings.HasPrefix(p.URL, "https://") || p.Size == 0 || strings.Contains(p.URL, "latest") {
+			t.Errorf("%s linux-amd64 entry is not pinned: %+v", name, p)
+		}
+	}
 	for _, name := range []string{ModelLargeV3TurboQ5, ModelSmallQ5, ModelSileroVAD} {
 		md := mf.Models[name]
 		if md.Size == 0 || !strings.Contains(md.URL, "/resolve/") || strings.Contains(md.URL, "/resolve/main/") {

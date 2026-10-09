@@ -22,7 +22,7 @@ type extracted struct {
 }
 
 // maxExtractedSize bounds a single extracted file; the largest real one
-// (deno) is under 100 MB. It only guards against a broken archive.
+// (the Linux ffmpeg) is under 200 MB. It only guards against a broken archive.
 const maxExtractedSize = 2 << 30
 
 // extractFiles copies the entries listed in files (archive path → installed
@@ -90,30 +90,20 @@ func extractFiles(payload, kind string, files map[string]string, dir string) (ma
 		if err != nil {
 			return nil, fmt.Errorf("open tar.gz: %w", err)
 		}
-		tr := tar.NewReader(gz)
-		for {
-			hdr, err := tr.Next()
-			if errors.Is(err, io.EOF) {
-				break
-			}
-			if err != nil {
-				return nil, fmt.Errorf("read tar.gz: %w", err)
-			}
-			dst, ok := want[cleanArchivePath(hdr.Name)]
-			if !ok || hdr.Typeflag != tar.TypeReg {
-				continue
-			}
-			if _, dup := out[dst]; dup {
-				continue
-			}
-			if err := put(dst, tr); err != nil {
-				return nil, err
-			}
+		if err := untar(gz, kind, want, out, put); err != nil {
+			return nil, err
+		}
+	case ArchiveTarXz:
+		f, err := os.Open(payload)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		if err := untar(newXZReader(f), kind, want, out, put); err != nil {
+			return nil, err
 		}
 	default:
-		// TODO(linux): tar.xz needs an xz decoder, which the standard library
-		// does not have; no darwin download uses it.
-		return nil, fmt.Errorf("archive kind %q is not supported on this platform yet", kind)
+		return nil, fmt.Errorf("unknown archive kind %q", kind)
 	}
 
 	for src, dst := range files {
@@ -122,6 +112,33 @@ func extractFiles(payload, kind string, files map[string]string, dir string) (ma
 		}
 	}
 	return out, nil
+}
+
+// untar copies the wanted regular files of a tar stream through put. It stops
+// reading once every wanted file was seen, so the rest of a large archive is
+// not decompressed for nothing.
+func untar(r io.Reader, kind string, want map[string]string, out map[string]extracted, put func(dst string, r io.Reader) error) error {
+	tr := tar.NewReader(r)
+	for len(out) < len(want) {
+		hdr, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("read %s: %w", kind, err)
+		}
+		dst, ok := want[cleanArchivePath(hdr.Name)]
+		if !ok || hdr.Typeflag != tar.TypeReg {
+			continue
+		}
+		if _, dup := out[dst]; dup {
+			continue
+		}
+		if err := put(dst, tr); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func cleanArchivePath(p string) string {

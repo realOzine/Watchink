@@ -125,27 +125,18 @@ func TestAVBVConversion(t *testing.T) {
 		if got, err := AVToBV(p.av); err != nil || got != p.bv {
 			t.Errorf("AVToBV(%d) = %q, %v; want %q", p.av, got, err, p.bv)
 		}
-		if got, err := BVToAV(p.bv); err != nil || got != p.av {
-			t.Errorf("BVToAV(%q) = %d, %v; want %d", p.bv, got, err, p.av)
-		}
 	}
-	// Round trip over a spread of values, including the post-2^32 range.
+	// A spread of values, including the post-2^32 range, yields well-formed ids.
 	for _, av := range []uint64{1, 99, 1 << 20, 1<<32 + 7, 1<<40 + 12345, 1<<51 - 1} {
 		bv, err := AVToBV(av)
 		if err != nil || !reBVID.MatchString(bv) {
 			t.Fatalf("AVToBV(%d) = %q, %v", av, bv, err)
-		}
-		if back, err := BVToAV(bv); err != nil || back != av {
-			t.Errorf("round trip %d -> %s -> %d (%v)", av, bv, back, err)
 		}
 	}
 	for _, av := range []uint64{0, 1 << 51, 1 << 60} {
 		if _, err := AVToBV(av); err == nil {
 			t.Errorf("AVToBV(%d) accepted an out-of-range value", av)
 		}
-	}
-	if _, err := BVToAV("BV17x411w7K"); err == nil {
-		t.Error("BVToAV accepted a short id")
 	}
 }
 

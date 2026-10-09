@@ -253,18 +253,6 @@ func TestParseProgressAndPatterns(t *testing.T) {
 			t.Errorf("detected language in %q = %q, want %q", line, got, want)
 		}
 	}
-
-	versions := map[string]string{
-		"whisper.cpp version: 1.8.2\n":                     "1.8.2",
-		"whisper.cpp version: v1.7.6-12-gabcdef0\n":        "1.7.6-12-gabcdef0",
-		"error: unknown argument: --version\nusage: ...\n": "unknown",
-		"": "unknown",
-	}
-	for in, want := range versions {
-		if got := parseVersion(in); got != want {
-			t.Errorf("parseVersion(%q) = %q, want %q", in, got, want)
-		}
-	}
 }
 
 func TestPromptAndThreads(t *testing.T) {
@@ -431,12 +419,6 @@ func TestFakeWhisperDetectAndVersion(t *testing.T) {
 	lang, err := w.DetectLanguage(context.Background(), DetectRequest{Audio: "/d/audio.wav"})
 	if err != nil || lang != "ja" {
 		t.Errorf("DetectLanguage = %q, %v; want ja (a non zh/en language is not an error)", lang, err)
-	}
-	if v := w.Version(context.Background()); v != "1.8.2" {
-		t.Errorf("Version = %q", v)
-	}
-	if v := (&WhisperCpp{}).Version(context.Background()); v != "unknown" {
-		t.Errorf("Version without a binary = %q", v)
 	}
 }
 

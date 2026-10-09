@@ -107,21 +107,8 @@ type stopRequest struct {
 // start order of §5.3 and returns ErrAlreadyRunning when another engine owns
 // the data directory. A clean stop returns nil.
 func Run(ctx context.Context, opts Options) (err error) {
-	if opts.DataDir == "" {
-		return errors.New("engine: DataDir is required")
-	}
-	if opts.Build == nil {
-		return errors.New("engine: Build is required")
-	}
-	switch opts.Mode {
-	case "":
-		opts.Mode = ModeBackground
-	case ModeBackground, ModeForeground:
-	default:
-		return fmt.Errorf("engine: unknown mode %q", opts.Mode)
-	}
-	if opts.ShutdownTimeout <= 0 {
-		opts.ShutdownTimeout = 5 * time.Second
+	if err := opts.normalize(); err != nil {
+		return err
 	}
 
 	// 1. The lock decides who the engine is (§5.1).
@@ -174,11 +161,10 @@ func Run(ctx context.Context, opts Options) (err error) {
 	port := ln.Addr().(*net.TCPAddr).Port
 	baseURL := "http://127.0.0.1:" + strconv.Itoa(port)
 
-	tokenBytes := make([]byte, 32)
-	if _, err := rand.Read(tokenBytes); err != nil {
-		return fmt.Errorf("engine: generate token: %w", err)
+	token, err := newToken()
+	if err != nil {
+		return err
 	}
-	token := base64.RawURLEncoding.EncodeToString(tokenBytes)
 	lg.AddSecret(token)
 
 	started := time.Now()
@@ -201,29 +187,8 @@ func Run(ctx context.Context, opts Options) (err error) {
 		}
 	}
 
-	handler := api.NewHandler(api.Options{
-		Service:           built.Service,
-		Token:             token,
-		Port:              port,
-		WebUI:             built.WebUI,
-		Logger:            log,
-		AllowedOrigins:    opts.AllowedOrigins,
-		HeartbeatInterval: opts.HeartbeatInterval,
-		OnShutdown: func(force bool) {
-			requestStop(stopRequest{reason: "shutdown requested", force: force})
-		},
-		EngineInfo: func(info *app.EngineInfo) {
-			info.PID = disc.PID
-			info.BaseURL = disc.BaseURL
-			info.Mode = disc.Mode
-			info.StartedAt = disc.StartedAt
-			info.Version = disc.Version
-			info.BuildID = disc.BuildID
-			info.API = disc.API
-			if info.DataDir == "" {
-				info.DataDir = opts.DataDir
-			}
-		},
+	handler := newHandler(opts, built, disc, port, log, func(force bool) {
+		requestStop(stopRequest{reason: "shutdown requested", force: force})
 	})
 	defer handler.Close()
 	srv := &http.Server{
@@ -270,43 +235,11 @@ func Run(ctx context.Context, opts Options) (err error) {
 		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 		defer signal.Stop(sigCh)
 	}
-
-	idle := idleTimeout(opts.Mode, built.IdleExit)
-	var idleTick <-chan time.Time
-	if idle > 0 {
-		interval := opts.IdleCheckInterval
-		if interval <= 0 {
-			interval = min(15*time.Second, max(idle/4, 10*time.Millisecond))
-		}
-		t := time.NewTicker(interval)
-		defer t.Stop()
-		idleTick = t.C
+	idle := func() bool { return false }
+	if timeout := idleTimeout(opts.Mode, built.IdleExit); timeout > 0 {
+		idle = func() bool { return isIdle(runCtx, built.Service, handler, started, timeout) }
 	}
-
-	var stop stopRequest
-	var runErr error
-wait:
-	for {
-		select {
-		case <-ctx.Done():
-			stop = stopRequest{reason: "context cancelled"}
-			break wait
-		case sig := <-sigCh:
-			stop = stopRequest{reason: "signal " + sig.String()}
-			break wait
-		case stop = <-stopCh:
-			break wait
-		case err := <-serveErr:
-			runErr = fmt.Errorf("engine: http server stopped: %w", err)
-			stop = stopRequest{reason: "http server error", force: true}
-			break wait
-		case <-idleTick:
-			if isIdle(runCtx, built.Service, handler, started, idle) {
-				stop = stopRequest{reason: "idle"}
-				break wait
-			}
-		}
-	}
+	stop, runErr := waitForStop(ctx, stopCh, sigCh, serveErr, idle, idleCheckInterval(opts, built))
 	log.Info("engine stopping", "reason", stop.reason, "force", stop.force)
 
 	// Stop the service (§5.4). A second signal or a later force request
@@ -325,6 +258,104 @@ wait:
 	// Deferred, in order: remove engine.json, close the listener and the
 	// log, release the lock last.
 	return runErr
+}
+
+// normalize validates the options and fills the defaults.
+func (o *Options) normalize() error {
+	if o.DataDir == "" {
+		return errors.New("engine: DataDir is required")
+	}
+	if o.Build == nil {
+		return errors.New("engine: Build is required")
+	}
+	switch o.Mode {
+	case "":
+		o.Mode = ModeBackground
+	case ModeBackground, ModeForeground:
+	default:
+		return fmt.Errorf("engine: unknown mode %q", o.Mode)
+	}
+	if o.ShutdownTimeout <= 0 {
+		o.ShutdownTimeout = 5 * time.Second
+	}
+	return nil
+}
+
+// newToken returns the per-run bearer token: 32 random bytes, base64url (§15).
+func newToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("engine: generate token: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+// newHandler builds the HTTP API over the service. The engine owns the
+// process identity, so it fills those fields of EngineInfo itself.
+func newHandler(opts Options, built *Built, disc Discovery, port int, log *slog.Logger, onShutdown func(force bool)) *api.Handler {
+	return api.NewHandler(api.Options{
+		Service:           built.Service,
+		Token:             disc.Token,
+		Port:              port,
+		WebUI:             built.WebUI,
+		Logger:            log,
+		AllowedOrigins:    opts.AllowedOrigins,
+		HeartbeatInterval: opts.HeartbeatInterval,
+		OnShutdown:        onShutdown,
+		EngineInfo: func(info *app.EngineInfo) {
+			info.PID = disc.PID
+			info.BaseURL = disc.BaseURL
+			info.Mode = disc.Mode
+			info.StartedAt = disc.StartedAt
+			info.Version = disc.Version
+			info.BuildID = disc.BuildID
+			info.API = disc.API
+			if info.DataDir == "" {
+				info.DataDir = opts.DataDir
+			}
+		},
+	})
+}
+
+// waitForStop blocks until something asks the engine to stop and says why:
+// the caller's context, a signal, a shutdown request, a dead HTTP server
+// (the only case with an error) or the idle check (§5.4).
+func waitForStop(ctx context.Context, stopCh <-chan stopRequest, sigCh <-chan os.Signal, serveErr <-chan error, idle func() bool, idleEvery time.Duration) (stopRequest, error) {
+	var idleTick <-chan time.Time
+	if idleEvery > 0 {
+		t := time.NewTicker(idleEvery)
+		defer t.Stop()
+		idleTick = t.C
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return stopRequest{reason: "context cancelled"}, nil
+		case sig := <-sigCh:
+			return stopRequest{reason: "signal " + sig.String()}, nil
+		case r := <-stopCh:
+			return r, nil
+		case err := <-serveErr:
+			return stopRequest{reason: "http server error", force: true}, fmt.Errorf("engine: http server stopped: %w", err)
+		case <-idleTick:
+			if idle() {
+				return stopRequest{reason: "idle"}, nil
+			}
+		}
+	}
+}
+
+// idleCheckInterval is how often the idle condition is evaluated, or 0 when
+// this engine never idles out.
+func idleCheckInterval(opts Options, built *Built) time.Duration {
+	idle := idleTimeout(opts.Mode, built.IdleExit)
+	if idle <= 0 {
+		return 0
+	}
+	if opts.IdleCheckInterval > 0 {
+		return opts.IdleCheckInterval
+	}
+	return min(15*time.Second, max(idle/4, 10*time.Millisecond))
 }
 
 // listen binds 127.0.0.1 on the wanted port, falling back to a port chosen

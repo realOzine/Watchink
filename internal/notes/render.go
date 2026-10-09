@@ -191,12 +191,21 @@ func yamlString(s string) string {
 	return strings.ReplaceAll(q, "WK://", `WK:\/\/`)
 }
 
+// renderer carries the state of one Render call: the indexes built from the
+// inputs, and the three outputs that grow section by section (the Markdown
+// text, the structured document and the citations table).
 type renderer struct {
-	in        RenderInput
-	long      bool
-	segByIdx  map[int]app.Segment
-	points    map[string]Point
+	in       RenderInput
+	dur      int64 // effective duration: never shorter than the transcript
+	long     bool  // H:MM:SS instead of MM:SS
+	segByIdx map[int]app.Segment
+	points   map[string]Point
+	terms    []Term // deduplicated, in time order
+
+	b         strings.Builder
+	doc       *Document
 	citations []app.Citation
+	cov       app.Coverage
 }
 
 // links renders the citation links for the given segment idx values of one
@@ -284,57 +293,92 @@ func Render(in RenderInput) (*Rendered, error) {
 	if in.Reduce == nil {
 		return nil, app.E(app.CodeInternal, "渲染笔记时缺少 reduce 结果")
 	}
+	r := &renderer{in: in}
+	if err := r.index(); err != nil {
+		return nil, err
+	}
+	title := r.writeHeader()
+	for _, write := range []func() error{r.writeOverview, r.writeSections, r.writeTakeaways, r.writeGlossary} {
+		if err := write(); err != nil {
+			return nil, err
+		}
+	}
+
+	markdown := strings.TrimRight(r.b.String(), "\n") + "\n"
+	citations := r.citations
+	if citations == nil {
+		citations = []app.Citation{}
+	}
+	r.cov.Citations = len(citations)
+	r.doc.Citations = citations
+	r.doc.Coverage = r.cov
+	if err := Verify(markdown, citations, in.Segments, r.dur); err != nil {
+		return nil, err
+	}
+	return &Rendered{Markdown: markdown, Title: title, Document: r.doc, Citations: citations, Coverage: r.cov}, nil
+}
+
+// index builds the lookup tables (segments by idx, points by ID, the term
+// list) and sums the per-chunk statistics into the coverage.
+func (r *renderer) index() error {
+	in := r.in
+	r.segByIdx = make(map[int]app.Segment, len(in.Segments))
+	r.points = map[string]Point{}
+	r.cov = app.Coverage{TranscriptSegments: len(in.Segments)}
 	// Timestamps come from segments, so the effective duration can never be
 	// shorter than the transcript (ASR may run a little past the container
 	// duration).
-	dur := in.DurationMs
-	r := &renderer{in: in, segByIdx: make(map[int]app.Segment, len(in.Segments)), points: map[string]Point{}}
-	cov := app.Coverage{TranscriptSegments: len(in.Segments)}
+	r.dur = in.DurationMs
 	for _, s := range in.Segments {
 		if _, dup := r.segByIdx[s.Idx]; dup {
-			return nil, app.E(app.CodeInternal, "字幕片段序号重复：%d", s.Idx)
+			return app.E(app.CodeInternal, "字幕片段序号重复：%d", s.Idx)
 		}
 		r.segByIdx[s.Idx] = s
-		dur = max(dur, s.EndMs)
-		cov.TranscriptChars += utf8.RuneCountInString(s.Text)
+		r.dur = max(r.dur, s.EndMs)
+		r.cov.TranscriptChars += utf8.RuneCountInString(s.Text)
 	}
-	r.long = IsLong(dur)
+	r.long = IsLong(r.dur)
 
-	var terms []Term
 	seenTerm := map[string]bool{}
 	for _, ch := range in.Chunks {
 		if ch == nil {
-			return nil, app.E(app.CodeInternal, "渲染笔记时缺少某个分块的 map 结果")
+			return app.E(app.CodeInternal, "渲染笔记时缺少某个分块的 map 结果")
 		}
-		cov.Chunks++
+		r.cov.Chunks++
 		if ch.Stats.Empty {
-			cov.ChunksEmpty++
+			r.cov.ChunksEmpty++
 		}
-		cov.Points += len(ch.Points)
-		cov.PointsDropped += ch.Stats.PointsDropped
-		cov.CitationsDropped += ch.Stats.CitationsDropped
-		cov.RepairCalls += ch.Stats.RepairCalls
-		cov.SplitRetries += ch.Stats.SplitRetries
+		r.cov.Points += len(ch.Points)
+		r.cov.PointsDropped += ch.Stats.PointsDropped
+		r.cov.CitationsDropped += ch.Stats.CitationsDropped
+		r.cov.RepairCalls += ch.Stats.RepairCalls
+		r.cov.SplitRetries += ch.Stats.SplitRetries
 		for _, p := range ch.Points {
 			if _, dup := r.points[p.ID]; dup {
-				return nil, app.E(app.CodeInternal, "要点编号重复：%s", p.ID)
+				return app.E(app.CodeInternal, "要点编号重复：%s", p.ID)
 			}
 			r.points[p.ID] = p
 		}
 		for _, t := range ch.Terms {
 			if key := strings.ToLower(t.Term); !seenTerm[key] {
 				seenTerm[key] = true
-				terms = append(terms, t)
+				r.terms = append(r.terms, t)
 			}
 		}
 	}
-	sort.SliceStable(terms, func(i, j int) bool { return terms[i].StartMs < terms[j].StartMs })
+	sort.SliceStable(r.terms, func(i, j int) bool { return r.terms[i].StartMs < r.terms[j].StartMs })
 	red := in.Reduce
-	cov.PointsUnplaced = red.Stats.PointsUnplaced
-	cov.RepairCalls += red.Stats.RepairCalls
-	cov.OverviewFallback = red.Overview.Fallback
+	r.cov.PointsUnplaced = red.Stats.PointsUnplaced
+	r.cov.RepairCalls += red.Stats.RepairCalls
+	r.cov.OverviewFallback = red.Overview.Fallback
+	return nil
+}
 
-	title := oneLine(red.Title)
+// writeHeader writes the front matter, the title and the source line, and
+// starts the document. It returns the note title.
+func (r *renderer) writeHeader() string {
+	in, b := r.in, &r.b
+	title := oneLine(in.Reduce.Title)
 	if title == "" {
 		title = oneLine(in.VideoTitle)
 	}
@@ -347,73 +391,78 @@ func Render(in RenderInput) (*Rendered, error) {
 	if sourceText == "" {
 		sourceText = in.Source.Type
 	}
-	doc := &Document{VideoID: in.VideoID, NoteID: in.NoteID, TranscriptID: in.TranscriptID, Title: title,
-		VideoTitle: in.VideoTitle, Source: in.Source, DurationMs: dur, Language: in.Language,
+	r.doc = &Document{VideoID: in.VideoID, NoteID: in.NoteID, TranscriptID: in.TranscriptID, Title: title,
+		VideoTitle: in.VideoTitle, Source: in.Source, DurationMs: r.dur, Language: in.Language,
 		GeneratedAt: generated, Model: model, PromptVersion: PromptVersion, RendererVersion: RendererVersion,
 		Sections: []DocSection{}, KeyTakeaways: []DocTakeaway{}, Terms: []DocTerm{}}
 
-	var b strings.Builder
 	b.WriteString("---\nwatchink:\n")
 	for _, kv := range [][2]string{
 		{"video_id", yamlString(in.VideoID)},
 		{"note_id", yamlString(in.NoteID)},
 		{"transcript_id", yamlString(in.TranscriptID)},
 		{"source", yamlString(sourceText)},
-		{"duration", strconv.Quote(FormatTime(dur, r.long))},
+		{"duration", strconv.Quote(FormatTime(r.dur, r.long))},
 		{"language", yamlString(in.Language)},
 		{"generated_at", generated},
 		{"model", yamlString(model)},
 		{"prompt_version", yamlString(PromptVersion)},
 	} {
-		fmt.Fprintf(&b, "  %s: %s\n", kv[0], kv[1])
+		fmt.Fprintf(b, "  %s: %s\n", kv[0], kv[1])
 	}
 	b.WriteString("---\n\n")
-	fmt.Fprintf(&b, "# %s\n\n", escapeInline(title))
+	fmt.Fprintf(b, "# %s\n\n", escapeInline(title))
 
 	videoTitle := escapeInline(in.VideoTitle)
 	if videoTitle == "" {
 		videoTitle = "未命名视频"
 	}
 	if link := safeLinkURL(in.Source.URI); link != "" && (in.Source.Type == app.SourceYouTube || in.Source.Type == app.SourceBilibili) {
-		fmt.Fprintf(&b, "> 来源：[%s](%s) · 时长 %s\n\n", videoTitle, link, FormatTime(dur, r.long))
+		fmt.Fprintf(b, "> 来源：[%s](%s) · 时长 %s\n\n", videoTitle, link, FormatTime(r.dur, r.long))
 	} else {
-		fmt.Fprintf(&b, "> 来源：%s（本地文件） · 时长 %s\n\n", videoTitle, FormatTime(dur, r.long))
+		fmt.Fprintf(b, "> 来源：%s（本地文件） · 时长 %s\n\n", videoTitle, FormatTime(r.dur, r.long))
 	}
+	return title
+}
 
-	// Overview.
-	b.WriteString("## 概览\n\n")
-	md, refs, err := r.pointLinks(red.Overview.PointIDs)
+func (r *renderer) writeOverview() error {
+	ov := r.in.Reduce.Overview
+	r.b.WriteString("## 概览\n\n")
+	md, refs, err := r.pointLinks(ov.PointIDs)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	doc.Overview = DocOverview{Text: oneLine(red.Overview.Text), PointIDs: append([]string{}, red.Overview.PointIDs...),
-		Refs: refs, Fallback: red.Overview.Fallback}
-	overview := escapeBlock(red.Overview.Text)
-	if overview == "" {
-		overview = "（未能生成概览）"
+	r.doc.Overview = DocOverview{Text: oneLine(ov.Text), PointIDs: append([]string{}, ov.PointIDs...), Refs: refs, Fallback: ov.Fallback}
+	text := escapeBlock(ov.Text)
+	if text == "" {
+		text = "（未能生成概览）"
 	}
-	b.WriteString(joinNonEmpty(overview, md) + "\n\n")
+	r.b.WriteString(joinNonEmpty(text, md) + "\n\n")
+	return nil
+}
 
-	// Sections. Every point must be rendered exactly once.
+// writeSections writes one "## n. heading" block per section and checks the
+// invariant of §9.3: every valid point is rendered exactly once.
+func (r *renderer) writeSections() error {
 	rendered := map[string]bool{}
-	for i, s := range red.Sections {
+	for i, s := range r.in.Reduce.Sections {
 		ds := DocSection{No: i + 1, Heading: oneLine(s.Heading), Summary: oneLine(s.Summary), Points: []DocPoint{}}
 		var body strings.Builder
 		for j, id := range s.PointIDs {
 			p, ok := r.points[id]
 			if !ok {
-				return nil, app.E(app.CodeInternal, "章节引用了不存在的要点 %s", id)
+				return app.E(app.CodeInternal, "章节引用了不存在的要点 %s", id)
 			}
 			if rendered[id] {
-				return nil, app.E(app.CodeInternal, "要点 %s 被放进了多个章节", id)
+				return app.E(app.CodeInternal, "要点 %s 被放进了多个章节", id)
 			}
 			rendered[id] = true
 			md, refs, err := r.links(id, p.Cites)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			if len(refs) == 0 {
-				return nil, app.E(app.CodeInternal, "要点 %s 没有引用", id)
+				return app.E(app.CodeInternal, "要点 %s 没有引用", id)
 			}
 			first := r.citations[refs[0]-1]
 			if j == 0 || first.StartMs < ds.StartMs {
@@ -433,7 +482,7 @@ func Render(in RenderInput) (*Rendered, error) {
 			ds.Points = append(ds.Points, DocPoint{ID: id, Title: p.Title, Detail: p.Detail, Kind: p.Kind, StartMs: first.StartMs, Refs: refs})
 		}
 		if len(ds.Points) == 0 {
-			return nil, app.E(app.CodeInternal, "章节 %d 没有任何要点", i+1)
+			return app.E(app.CodeInternal, "章节 %d 没有任何要点", i+1)
 		}
 		heading := escapeInline(s.Heading)
 		if heading == "" {
@@ -441,57 +490,52 @@ func Render(in RenderInput) (*Rendered, error) {
 		}
 		// The range shown is that of the cited segment starts, i.e. exactly
 		// the timestamps the reader sees in this section (§9.3).
-		fmt.Fprintf(&b, "## %d. %s `%s–%s`\n\n", i+1, heading, FormatTime(ds.StartMs, r.long), FormatTime(ds.EndMs, r.long))
+		fmt.Fprintf(&r.b, "## %d. %s `%s–%s`\n\n", i+1, heading, FormatTime(ds.StartMs, r.long), FormatTime(ds.EndMs, r.long))
 		if sum := escapeBlock(s.Summary); sum != "" {
-			b.WriteString(sum + "\n\n")
+			r.b.WriteString(sum + "\n\n")
 		}
-		b.WriteString(body.String() + "\n")
-		doc.Sections = append(doc.Sections, ds)
+		r.b.WriteString(body.String() + "\n")
+		r.doc.Sections = append(r.doc.Sections, ds)
 	}
 	if len(rendered) != len(r.points) {
-		return nil, app.E(app.CodeInternal, "有 %d 个有效要点没有出现在笔记中", len(r.points)-len(rendered))
+		return app.E(app.CodeInternal, "有 %d 个有效要点没有出现在笔记中", len(r.points)-len(rendered))
 	}
+	return nil
+}
 
-	// Key takeaways.
-	if len(red.Takeaways) > 0 {
-		b.WriteString("## 关键结论\n\n")
-		for _, t := range red.Takeaways {
-			md, refs, err := r.pointLinks(t.PointIDs)
-			if err != nil {
-				return nil, err
-			}
-			b.WriteString("- " + joinNonEmpty(escapeInline(t.Text), md) + "\n")
-			doc.KeyTakeaways = append(doc.KeyTakeaways, DocTakeaway{Text: oneLine(t.Text), PointIDs: append([]string{}, t.PointIDs...), Refs: refs})
+func (r *renderer) writeTakeaways() error {
+	takeaways := r.in.Reduce.Takeaways
+	if len(takeaways) == 0 {
+		return nil
+	}
+	r.b.WriteString("## 关键结论\n\n")
+	for _, t := range takeaways {
+		md, refs, err := r.pointLinks(t.PointIDs)
+		if err != nil {
+			return err
 		}
-		b.WriteString("\n")
+		r.b.WriteString("- " + joinNonEmpty(escapeInline(t.Text), md) + "\n")
+		r.doc.KeyTakeaways = append(r.doc.KeyTakeaways, DocTakeaway{Text: oneLine(t.Text), PointIDs: append([]string{}, t.PointIDs...), Refs: refs})
 	}
+	r.b.WriteString("\n")
+	return nil
+}
 
-	// Glossary.
-	if len(terms) > 0 {
-		b.WriteString("## 术语\n\n| 术语 | 说明 | 出处 |\n| --- | --- | --- |\n")
-		for _, t := range terms {
-			md, refs, err := r.links(t.ID, t.Cites)
-			if err != nil {
-				return nil, err
-			}
-			fmt.Fprintf(&b, "| %s | %s | %s |\n", escapeInline(t.Term), escapeInline(t.Explanation), md)
-			doc.Terms = append(doc.Terms, DocTerm{ID: t.ID, Term: t.Term, Explanation: t.Explanation, Refs: refs})
+func (r *renderer) writeGlossary() error {
+	if len(r.terms) == 0 {
+		return nil
+	}
+	r.b.WriteString("## 术语\n\n| 术语 | 说明 | 出处 |\n| --- | --- | --- |\n")
+	for _, t := range r.terms {
+		md, refs, err := r.links(t.ID, t.Cites)
+		if err != nil {
+			return err
 		}
-		b.WriteString("\n")
+		fmt.Fprintf(&r.b, "| %s | %s | %s |\n", escapeInline(t.Term), escapeInline(t.Explanation), md)
+		r.doc.Terms = append(r.doc.Terms, DocTerm{ID: t.ID, Term: t.Term, Explanation: t.Explanation, Refs: refs})
 	}
-
-	markdown := strings.TrimRight(b.String(), "\n") + "\n"
-	citations := r.citations
-	if citations == nil {
-		citations = []app.Citation{}
-	}
-	cov.Citations = len(citations)
-	doc.Citations = citations
-	doc.Coverage = cov
-	if err := Verify(markdown, citations, in.Segments, dur); err != nil {
-		return nil, err
-	}
-	return &Rendered{Markdown: markdown, Title: title, Document: doc, Citations: citations, Coverage: cov}, nil
+	r.b.WriteString("\n")
+	return nil
 }
 
 // citationLinkRe matches a rendered citation: an unescaped "[time]" label

@@ -5,34 +5,26 @@ import (
 	"encoding/json"
 	"path"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
 	"watchink/internal/app"
-	"watchink/internal/config"
 	"watchink/internal/jobs"
 	"watchink/internal/llm"
 	"watchink/internal/notes"
 	"watchink/internal/store"
 )
 
-const (
-	noteMapVersion    = 1
-	noteReduceVersion = 1
-	noteRenderVersion = 1
-)
+// The three note stages follow D-09: note_map asks the model for points per
+// transcript chunk, note_reduce asks it to organise the points, note_render
+// is pure code that validates the citations and writes the note.
 
 // mapBundle is the stage-level artifact of note_map: every chunk result in
 // order. note_reduce reads it, so it never has to redo the chunking.
 type mapBundle struct {
 	TranscriptID string               `json:"transcript_id"`
 	Chunks       []*notes.ChunkResult `json:"chunks"`
-}
-
-// modelID identifies the online model in fingerprints: a different endpoint
-// or model must not reuse another one's output.
-func modelID(cfg app.Settings) map[string]any {
-	return map[string]any{"base_url": cfg.LLM.BaseURL, "model": cfg.LLM.Model, "temperature": cfg.LLM.Temperature}
 }
 
 // transcriptOf loads the transcript produced (or reused) by the transcribe
@@ -82,14 +74,7 @@ func (p *Pipeline) llmClient(sc *jobs.StageContext) (llm.Client, error) {
 	return llm.New(cfg)
 }
 
-func (p *Pipeline) chunkOptions() notes.Options {
-	cfg := p.cfg()
-	d, err := config.ParseDuration(cfg.Note.ChunkMaxDuration)
-	if err != nil || d <= 0 {
-		d = 10 * time.Minute
-	}
-	return notes.Options{MaxTokens: cfg.Note.ChunkMaxTokens, MaxDuration: d}
-}
+// --- note_map ---
 
 func (p *Pipeline) noteMap(ctx context.Context, sc *jobs.StageContext) (*jobs.StageResult, error) {
 	tr, segs, err := p.transcriptOf(ctx, sc)
@@ -114,13 +99,9 @@ func (p *Pipeline) noteMap(ctx context.Context, sc *jobs.StageContext) (*jobs.St
 	if err != nil {
 		return nil, err
 	}
-	v, err := p.st.GetVideo(ctx, sc.VideoID())
+	v, duration, err := p.video(ctx, sc)
 	if err != nil {
 		return nil, err
-	}
-	var duration int64
-	if v.DurationMs != nil {
-		duration = *v.DurationMs
 	}
 	dir := path.Join(p.st.VideoDir(v.ID), "work")
 	var mu sync.Mutex
@@ -164,6 +145,8 @@ func (p *Pipeline) noteMap(ctx context.Context, sc *jobs.StageContext) (*jobs.St
 	return done(a), nil
 }
 
+// --- note_reduce ---
+
 func (p *Pipeline) noteReduce(ctx context.Context, sc *jobs.StageContext) (*jobs.StageResult, error) {
 	bundleArt, err := p.depArtifact(ctx, sc, app.StageNoteMap)
 	if err != nil {
@@ -184,13 +167,9 @@ func (p *Pipeline) noteReduce(ctx context.Context, sc *jobs.StageContext) (*jobs
 	if err != nil {
 		return nil, err
 	}
-	v, err := p.st.GetVideo(ctx, sc.VideoID())
+	v, duration, err := p.video(ctx, sc)
 	if err != nil {
 		return nil, err
-	}
-	var duration int64
-	if v.DurationMs != nil {
-		duration = *v.DurationMs
 	}
 	res, err := notes.Reduce(ctx, client, notes.ReduceInput{VideoTitle: v.Title, DurationMs: duration, Chunks: bundle.Chunks})
 	if err != nil {
@@ -203,33 +182,55 @@ func (p *Pipeline) noteReduce(ctx context.Context, sc *jobs.StageContext) (*jobs
 	return done(a), nil
 }
 
+// --- note_render ---
+
 func (p *Pipeline) noteRender(ctx context.Context, sc *jobs.StageContext) (*jobs.StageResult, error) {
 	reduceArt, err := p.depArtifact(ctx, sc, app.StageNoteReduce)
 	if err != nil {
 		return nil, err
 	}
-	videoID := sc.VideoID()
 	fp := jobs.Fingerprint(app.StageNoteRender, noteRenderVersion, map[string]any{
 		"reduce_sha256": reduceArt.SHA256, "renderer": notes.RendererVersion,
 	})
 	if a := p.cached(ctx, sc, store.KindNoteMD, fp, true); a != nil {
-		if n := p.noteByArtifact(ctx, videoID, a.ID); n != nil {
+		if n := p.noteByArtifact(ctx, sc.VideoID(), a.ID); n != nil {
 			if err := p.setNote(ctx, sc, n.ID); err != nil {
 				return nil, err
 			}
 			return reused(a), nil
 		}
 	}
-	var red notes.ReduceResult
-	if err := p.readJSON(reduceArt, &red); err != nil {
+	in, err := p.renderInput(ctx, sc, reduceArt)
+	if err != nil {
 		return nil, err
 	}
-	// The map bundle is the note_map output this reduce was built from.
-	var bundle mapBundle
+	out, err := notes.Render(*in)
+	if err != nil {
+		return nil, err
+	}
+	md, err := p.saveNote(ctx, sc, in, out, fp)
+	if err != nil {
+		return nil, err
+	}
+	p.changed(in.VideoID)
+	if err := sc.SetResult(func(r *app.JobResult) { r.NoteID = &in.NoteID }); err != nil {
+		return nil, err
+	}
+	return done(md), nil
+}
+
+// renderInput gathers what the renderer needs: the reduce output, the map
+// bundle it was built from, and the transcript both refer to.
+func (p *Pipeline) renderInput(ctx context.Context, sc *jobs.StageContext, reduceArt *store.Artifact) (*notes.RenderInput, error) {
+	red := new(notes.ReduceResult)
+	if err := p.readJSON(reduceArt, red); err != nil {
+		return nil, err
+	}
 	mapArt, err := p.mapBundleOf(ctx, sc)
 	if err != nil {
 		return nil, err
 	}
+	var bundle mapBundle
 	if err := p.readJSON(mapArt, &bundle); err != nil {
 		return nil, err
 	}
@@ -241,26 +242,24 @@ func (p *Pipeline) noteRender(ctx context.Context, sc *jobs.StageContext) (*jobs
 	if err != nil {
 		return nil, err
 	}
-	v, err := p.st.GetVideo(ctx, videoID)
+	v, duration, err := p.video(ctx, sc)
 	if err != nil {
 		return nil, err
 	}
-	var duration int64
-	if v.DurationMs != nil {
-		duration = *v.DurationMs
-	}
-	cfg := p.cfg()
-	noteID := app.NewID(app.PrefixNote)
-	out, err := notes.Render(notes.RenderInput{
-		VideoID: videoID, NoteID: noteID, TranscriptID: tr.ID, Source: VideoSource(v), VideoTitle: v.Title,
+	return &notes.RenderInput{
+		VideoID: v.ID, NoteID: app.NewID(app.PrefixNote), TranscriptID: tr.ID, Source: VideoSource(v), VideoTitle: v.Title,
 		DurationMs: duration, Language: tr.Language, GeneratedAt: time.Now().UTC(),
-		Model: cfg.LLM.Model, Segments: segs, Chunks: bundle.Chunks, Reduce: &red,
-	})
-	if err != nil {
-		return nil, err
-	}
-	dir := path.Join(p.st.VideoDir(videoID), "notes", noteID)
-	mdInfo, err := p.st.WriteFileAtomic(path.Join(dir, "note.md"), []byte(out.Markdown))
+		Model: p.cfg().LLM.Model, Segments: segs, Chunks: bundle.Chunks, Reduce: red,
+	}, nil
+}
+
+// saveNote writes note.md and note.json, then registers both artifacts, the
+// note version with its citations, and the video's current note in one
+// transaction. It returns the Markdown artifact.
+func (p *Pipeline) saveNote(ctx context.Context, sc *jobs.StageContext, in *notes.RenderInput, out *notes.Rendered, fp string) (*store.Artifact, error) {
+	dir := path.Join(p.st.VideoDir(in.VideoID), "notes", in.NoteID)
+	mdRel, jsonRel := path.Join(dir, "note.md"), path.Join(dir, "note.json")
+	mdInfo, err := p.st.WriteFileAtomic(mdRel, []byte(out.Markdown))
 	if err != nil {
 		return nil, err
 	}
@@ -268,7 +267,7 @@ func (p *Pipeline) noteRender(ctx context.Context, sc *jobs.StageContext) (*jobs
 	if err != nil {
 		return nil, err
 	}
-	jsonInfo, err := p.st.WriteFileAtomic(path.Join(dir, "note.json"), docJSON)
+	jsonInfo, err := p.st.WriteFileAtomic(jsonRel, docJSON)
 	if err != nil {
 		return nil, err
 	}
@@ -279,30 +278,23 @@ func (p *Pipeline) noteRender(ctx context.Context, sc *jobs.StageContext) (*jobs
 	}
 	var md *store.Artifact
 	err = p.st.Write(ctx, func(tx *store.Tx) error {
-		if md, err = tx.PutArtifact(ctx, &store.Artifact{VideoID: videoID, Kind: store.KindNoteMD, Fingerprint: fp, Path: path.Join(dir, "note.md"), SHA256: mdInfo.SHA256, SizeBytes: mdInfo.Size}); err != nil {
+		if md, err = tx.PutArtifact(ctx, &store.Artifact{VideoID: in.VideoID, Kind: store.KindNoteMD, Fingerprint: fp, Path: mdRel, SHA256: mdInfo.SHA256, SizeBytes: mdInfo.Size}); err != nil {
 			return err
 		}
-		js, err := tx.PutArtifact(ctx, &store.Artifact{VideoID: videoID, Kind: store.KindNoteJSON, Fingerprint: fp, Path: path.Join(dir, "note.json"), SHA256: jsonInfo.SHA256, SizeBytes: jsonInfo.Size})
+		js, err := tx.PutArtifact(ctx, &store.Artifact{VideoID: in.VideoID, Kind: store.KindNoteJSON, Fingerprint: fp, Path: jsonRel, SHA256: jsonInfo.SHA256, SizeBytes: jsonInfo.Size})
 		if err != nil {
 			return err
 		}
 		if err := tx.InsertNote(ctx, &store.Note{
-			ID: noteID, VideoID: videoID, TranscriptID: tr.ID, Title: out.Title, MDArtifactID: md.ID, JSONArtifactID: js.ID,
-			LLMProvider: llm.Provider, LLMModel: cfg.LLM.Model, PromptVersion: notes.PromptVersion, Coverage: coverage, CreatedByJob: sc.JobID(),
+			ID: in.NoteID, VideoID: in.VideoID, TranscriptID: in.TranscriptID, Title: out.Title, MDArtifactID: md.ID, JSONArtifactID: js.ID,
+			LLMProvider: llm.Provider, LLMModel: in.Model, PromptVersion: notes.PromptVersion, Coverage: coverage, CreatedByJob: sc.JobID(),
 		}, cites); err != nil {
 			return err
 		}
-		_, err = tx.UpdateVideo(ctx, videoID, store.VideoPatch{CurrentNoteID: &noteID})
+		_, err = tx.UpdateVideo(ctx, in.VideoID, store.VideoPatch{CurrentNoteID: &in.NoteID})
 		return err
 	})
-	if err != nil {
-		return nil, err
-	}
-	p.changed(videoID)
-	if err := sc.SetResult(func(r *app.JobResult) { r.NoteID = &noteID }); err != nil {
-		return nil, err
-	}
-	return done(md), nil
+	return md, err
 }
 
 // mapBundleOf finds the note_map bundle of this job. note_render depends on
@@ -347,21 +339,12 @@ func VideoSource(v *store.Video) app.VideoSource {
 	src := app.VideoSource{Type: v.SourceType, URI: v.SourceURI}
 	switch v.SourceType {
 	case app.SourceYouTube, app.SourceBilibili:
-		if _, id, ok := cutKey(v.SourceKey); ok {
+		// source_key is "youtube:<id>" / "bilibili:<BV>:p<n>".
+		if _, id, ok := strings.Cut(v.SourceKey, ":"); ok {
 			src.PlatformID = id
 		}
 	default:
 		src.URI = filepath.Base(v.SourceURI)
 	}
 	return src
-}
-
-// cutKey splits "youtube:<id>" / "bilibili:<BV>:p<n>" into platform and id.
-func cutKey(key string) (platform, id string, ok bool) {
-	for i := 0; i < len(key); i++ {
-		if key[i] == ':' {
-			return key[:i], key[i+1:], true
-		}
-	}
-	return "", "", false
 }

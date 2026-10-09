@@ -42,28 +42,6 @@ func SegmentID(transcriptID string, idx int) string {
 	return fmt.Sprintf("%s%s_%05d", PrefixSegment, strings.TrimPrefix(transcriptID, PrefixTranscript), idx)
 }
 
-// ParseSegmentID splits a segment ID into its transcript ID and 1-based idx.
-func ParseSegmentID(id string) (transcriptID string, idx int, ok bool) {
-	rest, found := strings.CutPrefix(id, PrefixSegment)
-	if !found {
-		return "", 0, false
-	}
-	u, n, found := strings.Cut(rest, "_")
-	if !found || len(u) != ulid.EncodedSize || len(n) != 5 {
-		return "", 0, false
-	}
-	for _, c := range n {
-		if c < '0' || c > '9' {
-			return "", 0, false
-		}
-		idx = idx*10 + int(c-'0')
-	}
-	if idx < 1 {
-		return "", 0, false
-	}
-	return PrefixTranscript + u, idx, true
-}
-
 // Now returns the current instant as an RFC 3339 UTC string.
 func Now() string { return FormatTime(time.Now()) }
 

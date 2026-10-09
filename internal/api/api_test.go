@@ -75,12 +75,6 @@ func newEnv(t *testing.T, mutate func(o *api.Options)) *env {
 	return e
 }
 
-func (e *env) advance(d time.Duration) {
-	e.nowMu.Lock()
-	defer e.nowMu.Unlock()
-	e.now = e.now.Add(d)
-}
-
 func (e *env) logText() string {
 	e.logsMu.Lock()
 	defer e.logsMu.Unlock()

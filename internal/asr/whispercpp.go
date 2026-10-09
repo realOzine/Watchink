@@ -42,8 +42,7 @@ var (
 	// "whisper_print_progress_callback: progress =  45%"
 	reProgress = regexp.MustCompile(`progress\s*=\s*(\d{1,3})\s*%`)
 	// "whisper.cpp version: 1.8.2"
-	reVersion = regexp.MustCompile(`(?i)version:?\s*v?([0-9][0-9A-Za-z.\-+]*)`)
-	reLang    = regexp.MustCompile(`^[a-z]{2,8}$`)
+	reLang = regexp.MustCompile(`^[a-z]{2,8}$`)
 )
 
 func asrFailed(format string, args ...any) *app.Error {
@@ -298,35 +297,4 @@ func ParseWhisperJSON(data []byte) (*Result, error) {
 		out.Segments = append(out.Segments, RawSegment{StartMs: s.Offsets.From, EndMs: s.Offsets.To, Text: s.Text})
 	}
 	return out, nil
-}
-
-// Version returns the whisper.cpp version reported by `whisper-cli
-// --version`, or "unknown" when the build does not support the flag. It is
-// meant for the transcribe stage fingerprint, together with the model hash.
-func (w *WhisperCpp) Version(ctx context.Context) string {
-	if w.Runner == nil || w.Bin == "" {
-		return "unknown"
-	}
-	var out strings.Builder
-	res, err := w.Runner.Run(ctx, procx.Cmd{Path: w.Bin, Args: []string{"--version"}, Stdout: &out, Stage: app.StageTranscribe})
-	if err != nil {
-		return "unknown"
-	}
-	text := out.String()
-	if res != nil {
-		text += "\n" + res.StderrTail
-	}
-	return parseVersion(text)
-}
-
-func parseVersion(text string) string {
-	for _, line := range strings.Split(text, "\n") {
-		if !strings.Contains(strings.ToLower(line), "version") {
-			continue
-		}
-		if m := reVersion.FindStringSubmatch(line); m != nil {
-			return m[1]
-		}
-	}
-	return "unknown"
 }

@@ -33,8 +33,6 @@ func TestIntegrationWhisper(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	t.Logf("whisper.cpp version: %s", w.Version(ctx))
-
 	lang, err := w.DetectLanguage(ctx, DetectRequest{Audio: audio})
 	if err != nil {
 		t.Fatalf("DetectLanguage: %v", err)

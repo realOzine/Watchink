@@ -1,22 +1,29 @@
 // Package pipeline implements the stages of the process_video and
-// prepare_tools jobs (docs/v0.md §7.2). Each stage computes an input
-// fingerprint, reuses a registered artifact when one matches (§7.4) and
-// otherwise does the work through the media, asr, llm and notes packages.
+// prepare_tools jobs (docs/v0.md §7.2).
+//
+// The scheduler (internal/jobs) knows nothing about video: this package
+// gives it a list of stages per job kind (the DAG in processVideoStages) and
+// one function per stage. Every stage function has the same shape:
+//
+//  1. load its inputs: the job options and the artifacts of the stages it
+//     depends on;
+//  2. compute a fingerprint of those inputs (§7.4);
+//  3. return the registered artifact when one matches (reused);
+//  4. otherwise do the work through media / asr / llm / notes, write the
+//     result under the video's directory and register it as an artifact.
+//
+// Files: pipeline.go (wiring and the DAG), artifacts.go (the cache and
+// artifact helpers every stage uses), settings.go (settings → package
+// configs), then one stage_*.go per group of stages.
 package pipeline
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"log/slog"
-	"net/http"
-	"net/url"
-	"time"
 
 	"watchink/internal/app"
-	"watchink/internal/config"
 	"watchink/internal/jobs"
-	"watchink/internal/llm"
 	"watchink/internal/media"
 	"watchink/internal/procx"
 	"watchink/internal/store"
@@ -141,174 +148,15 @@ func (p *Pipeline) wrap(fn jobs.StageFunc) jobs.StageFunc {
 	}
 }
 
-func options(sc *jobs.StageContext) (JobOptions, error) {
-	var opt JobOptions
-	err := sc.DecodeOptions(&opt)
-	return opt, err
-}
-
-// cached returns the registered artifact for (kind, fp) when the stage may
-// reuse it. hash re-verifies the sha256; large media files only get the
-// cheap existence + size check.
-func (p *Pipeline) cached(ctx context.Context, sc *jobs.StageContext, kind, fp string, hash bool) *store.Artifact {
-	if sc.IgnoreCache {
-		return nil
-	}
-	a, err := p.st.FindArtifact(ctx, kind, fp)
-	if err != nil || a == nil || a.Purged {
-		return nil
-	}
-	if hash {
-		if !p.st.VerifyArtifact(a) {
-			return nil
-		}
-	} else if !p.st.ArtifactPresent(a) {
-		return nil
-	}
-	return a
-}
-
-func reused(a *store.Artifact) *jobs.StageResult {
-	return &jobs.StageResult{ArtifactID: a.ID, Reused: true, Fingerprint: a.Fingerprint}
-}
-
-func done(a *store.Artifact) *jobs.StageResult {
-	return &jobs.StageResult{ArtifactID: a.ID, Fingerprint: a.Fingerprint}
-}
-
-// depArtifact loads the artifact a dependency stage produced.
-func (p *Pipeline) depArtifact(ctx context.Context, sc *jobs.StageContext, stage string) (*store.Artifact, error) {
-	d, ok := sc.Dep(stage)
-	if !ok || d.ArtifactID == "" {
-		return nil, app.E(app.CodeInternal, "阶段 %s 没有登记产物", stage)
-	}
-	return p.st.GetArtifact(ctx, d.ArtifactID)
-}
-
-func (p *Pipeline) readJSON(a *store.Artifact, v any) error {
-	b, err := readFile(p.st.Abs(a.Path))
-	if err != nil {
-		return app.E(app.CodeInternal, "读取产物 %s 失败：%v", a.Path, err)
-	}
-	if err := json.Unmarshal(b, v); err != nil {
-		return app.E(app.CodeInternal, "解析产物 %s 失败：%v", a.Path, err)
-	}
-	return nil
-}
-
-// putJSON writes v under rel and registers it as an artifact.
-func (p *Pipeline) putJSON(ctx context.Context, videoID, kind, fp, rel string, v any) (*store.Artifact, error) {
-	var buf bytes.Buffer
-	enc := json.NewEncoder(&buf)
-	enc.SetEscapeHTML(false)
-	enc.SetIndent("", "  ")
-	if err := enc.Encode(v); err != nil {
-		return nil, err
-	}
-	fi, err := p.st.WriteFileAtomic(rel, buf.Bytes())
-	if err != nil {
-		return nil, err
-	}
-	return p.st.PutArtifact(ctx, &store.Artifact{VideoID: videoID, Kind: kind, Fingerprint: fp, Path: rel, SHA256: fi.SHA256, SizeBytes: fi.Size})
-}
-
-// ASRModel returns the configured ASR model ID or the platform default.
-func ASRModel(cfg app.Settings, t *tools.Manager) string {
-	if cfg.ASR.Model != "" {
-		return cfg.ASR.Model
-	}
-	return t.DefaultASRModel()
-}
-
-// HTTPClient returns a client honouring network.proxy (§11.4); an empty
-// proxy follows the environment.
-func HTTPClient(proxy string) *http.Client {
-	tr := http.DefaultTransport.(*http.Transport).Clone()
-	if proxy != "" {
-		if u, err := url.Parse(proxy); err == nil {
-			tr.Proxy = http.ProxyURL(u)
-		}
-	}
-	return &http.Client{Transport: tr}
-}
-
-// LLMConfig builds the online model configuration from the settings and the
-// resolved credential (D-14).
-func LLMConfig(cfg app.Settings, acquire func(context.Context) (func(), error)) llm.Config {
-	key, _ := config.ResolveLLMAPIKey(cfg)
-	timeout, err := config.ParseDuration(cfg.LLM.Timeout)
-	if err != nil || timeout <= 0 {
-		timeout = 120 * time.Second
-	}
-	return llm.Config{
-		BaseURL: cfg.LLM.BaseURL, Model: cfg.LLM.Model, APIKey: key,
-		StructuredOutput: cfg.LLM.StructuredOutput, Temperature: cfg.LLM.Temperature,
-		Timeout: timeout, HTTPClient: HTTPClient(cfg.Network.Proxy), Acquire: acquire,
-	}
-}
-
-// LLMConfigured reports whether notes can be generated with cfg.
-func LLMConfigured(cfg app.Settings) bool {
-	return llm.Validate(LLMConfig(cfg, nil)) == nil
-}
-
-// --- ensure_tools / prepare_tools ---
-
-func (p *Pipeline) ensureTools(ctx context.Context, sc *jobs.StageContext) (*jobs.StageResult, error) {
-	opt, err := options(sc)
-	if err != nil {
-		return nil, err
-	}
-	cfg := p.cfg()
-	model := ASRModel(cfg, p.tools)
-	missing := p.missing(p.tools.Needed(opt.SourceType, model, cfg.ASR.VAD), model, cfg.ASR.VAD)
-	if len(missing) == 0 {
-		return &jobs.StageResult{}, nil
-	}
-	if !cfg.Tools.AutoPrepare {
-		return nil, app.E(app.CodeToolMissing, "缺少工具或模型：%v", missing).
-			WithHint("运行 watchink tools prepare，或在设置中开启自动准备").WithDetail("missing", missing)
-	}
-	return &jobs.StageResult{}, p.ensure(ctx, sc, missing)
-}
-
-func (p *Pipeline) prepareTools(ctx context.Context, sc *jobs.StageContext) (*jobs.StageResult, error) {
-	opt, err := options(sc)
-	if err != nil {
-		return nil, err
-	}
-	return &jobs.StageResult{}, p.ensure(ctx, sc, opt.Items)
-}
-
-// missing filters names down to the items that are not ready.
-func (p *Pipeline) missing(names []string, model string, vad bool) []string {
-	ready := map[string]bool{}
-	for _, it := range p.tools.Status(model, vad).Items {
-		ready[it.Name] = it.Status == app.ToolReady
-	}
-	var out []string
-	for _, n := range names {
-		if !ready[n] {
-			out = append(out, n)
-		}
-	}
-	return out
-}
-
-// ensure installs names, reporting progress as the mean of the items.
-func (p *Pipeline) ensure(ctx context.Context, sc *jobs.StageContext, names []string) error {
-	if len(names) == 0 {
-		return nil
-	}
-	frac := map[string]float64{}
-	return p.tools.Ensure(ctx, names, func(name string, got, total int64) {
-		if total > 0 {
-			frac[name] = float64(got) / float64(total)
-		}
-		sum := 0.0
-		for _, f := range frac {
-			sum += f
-		}
-		sc.Progress(sum / float64(len(names)))
-	})
-}
+// Stage versions take part in the fingerprints: bump one when that stage's
+// logic changes so artifacts made by the old logic are not reused (§7.4).
+const (
+	acquireVersion    = 1
+	probeVersion      = 1
+	audioVersion      = 1
+	asrVersion        = 1
+	playbackVersion   = 1
+	noteMapVersion    = 1
+	noteReduceVersion = 1
+	noteRenderVersion = 1
+)

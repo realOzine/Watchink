@@ -228,25 +228,6 @@ func AVToBV(aid uint64) (string, error) {
 	return string(b), nil
 }
 
-// BVToAV converts a BV id to its av number.
-func BVToAV(bv string) (uint64, error) {
-	if !reBVID.MatchString(bv) {
-		return 0, fmt.Errorf("invalid BV id")
-	}
-	b := []byte(bv)
-	b[3], b[9] = b[9], b[3]
-	b[4], b[7] = b[7], b[4]
-	var tmp uint64
-	for _, c := range b[3:] {
-		idx := strings.IndexByte(bvTable, c)
-		if idx < 0 {
-			return 0, fmt.Errorf("invalid BV id")
-		}
-		tmp = tmp*58 + uint64(idx)
-	}
-	return (tmp & bvMask) ^ bvXOR, nil
-}
-
 // ResolveShortLink resolves a b23.tv short link by following its redirects
 // (at most 5 hops, 5 s in total — §6.6) and normalizes the target, which must
 // be a Bilibili video. Only b23.tv itself is ever contacted: the walk stops

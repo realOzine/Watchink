@@ -25,17 +25,12 @@ type resolved struct {
 	opt                         pipeline.JobOptions
 }
 
-// Import implements app.Service with the dedup policy of §7.5.
+// Import implements app.Service: validate the request, turn the source into
+// a dedup key, then — in one write transaction — either answer from what the
+// library already has (§7.5) or create the video and its job.
 func (s *Service) Import(ctx context.Context, req app.ImportRequest) (*app.ImportResponse, error) {
-	switch req.Language {
-	case "", "auto", "zh", "en":
-	default:
-		return nil, app.E(app.CodeInvalidArgument, "language 只能是 auto、zh 或 en")
-	}
-	switch req.ReprocessFrom {
-	case "", jobs.ReprocessAcquire, jobs.ReprocessTranscribe, jobs.ReprocessNote:
-	default:
-		return nil, app.E(app.CodeInvalidArgument, "reprocess_from 只能是 acquire、transcribe 或 note")
+	if err := validateImport(req); err != nil {
+		return nil, err
 	}
 	src, err := s.resolveSource(ctx, req.Source)
 	if err != nil {
@@ -56,35 +51,8 @@ func (s *Service) Import(ctx context.Context, req app.ImportRequest) (*app.Impor
 			if err := tx.CreateVideo(ctx, v); err != nil {
 				return err
 			}
-		} else {
-			resp.VideoID = v.ID
-			if v.CurrentNoteID != "" {
-				id := v.CurrentNoteID
-				resp.NoteID = &id
-			}
-			// At most one active job per video, checked inside the
-			// import transaction (§6.4).
-			active, err := tx.ActiveJobOfVideo(ctx, v.ID)
-			if err != nil {
-				return err
-			}
-			if active != nil {
-				resp.JobID, resp.Status, resp.Deduplicated = active.ID, active.Status, true
-				return nil
-			}
-			if req.ReprocessFrom == "" {
-				latest, err := tx.LatestJobOfVideo(ctx, v.ID)
-				if err != nil {
-					return err
-				}
-				if latest != nil {
-					resp.JobID, resp.Status, resp.Deduplicated = latest.ID, latest.Status, true
-					if latest.Status == app.JobSucceeded {
-						resp.Status = app.ImportStatusAlreadyProcessed
-					}
-					return nil
-				}
-			}
+		} else if answered, err := answerFromExisting(ctx, tx, v, req.ReprocessFrom, resp); err != nil || answered {
+			return err
 		}
 		// The job keeps the source type of the stored video: a re-import
 		// of the same bytes through another entry reuses the library copy.
@@ -117,6 +85,55 @@ func (s *Service) Import(ctx context.Context, req app.ImportRequest) (*app.Impor
 		resp.Warnings = append(resp.Warnings, app.WarnModelNotConfigured)
 	}
 	return resp, nil
+}
+
+func validateImport(req app.ImportRequest) error {
+	switch req.Language {
+	case "", "auto", "zh", "en":
+	default:
+		return app.E(app.CodeInvalidArgument, "language 只能是 auto、zh 或 en")
+	}
+	switch req.ReprocessFrom {
+	case "", jobs.ReprocessAcquire, jobs.ReprocessTranscribe, jobs.ReprocessNote:
+	default:
+		return app.E(app.CodeInvalidArgument, "reprocess_from 只能是 acquire、transcribe 或 note")
+	}
+	return nil
+}
+
+// answerFromExisting applies the repeat-import table of §7.5 to a video that
+// is already in the library. It fills resp and reports true when no new job
+// is needed: the video has an active job, or (without reprocess_from) it has
+// been processed before, whatever the outcome.
+func answerFromExisting(ctx context.Context, tx *store.Tx, v *store.Video, reprocessFrom string, resp *app.ImportResponse) (bool, error) {
+	resp.VideoID = v.ID
+	if v.CurrentNoteID != "" {
+		id := v.CurrentNoteID
+		resp.NoteID = &id
+	}
+	// At most one active job per video, checked inside the import
+	// transaction (§6.4).
+	active, err := tx.ActiveJobOfVideo(ctx, v.ID)
+	if err != nil {
+		return false, err
+	}
+	if active != nil {
+		resp.JobID, resp.Status, resp.Deduplicated = active.ID, active.Status, true
+		return true, nil
+	}
+	if reprocessFrom != "" {
+		return false, nil
+	}
+	latest, err := tx.LatestJobOfVideo(ctx, v.ID)
+	if err != nil || latest == nil {
+		return false, err
+	}
+	resp.JobID, resp.Status, resp.Deduplicated = latest.ID, latest.Status, true
+	if latest.Status == app.JobSucceeded {
+		// A finished video is not an error and not a new job.
+		resp.Status = app.ImportStatusAlreadyProcessed
+	}
+	return true, nil
 }
 
 func (s *Service) resolveSource(ctx context.Context, in app.ImportSource) (*resolved, error) {
@@ -232,148 +249,4 @@ func (c *ctxReader) Read(p []byte) (int, error) {
 		return 0, err
 	}
 	return c.r.Read(p)
-}
-
-// --- jobs ---
-
-// ListJobs implements app.Service.
-func (s *Service) ListJobs(ctx context.Context, req app.ListJobsRequest) (*app.JobList, error) {
-	f := store.JobFilter{VideoID: req.VideoID, Limit: req.Limit, Cursor: req.Cursor}
-	if req.Status != "" {
-		f.Statuses = strings.Split(req.Status, ",")
-	}
-	rows, next, err := s.st.ListJobs(ctx, f)
-	if err != nil {
-		return nil, err
-	}
-	out := &app.JobList{Jobs: make([]app.Job, len(rows))}
-	for i, r := range rows {
-		out.Jobs[i] = s.sched.ToDTO(r)
-	}
-	if next != "" {
-		out.NextCursor = &next
-	}
-	return out, nil
-}
-
-// GetJob implements app.Service, long-polling when WaitSeconds > 0 (§13.2).
-func (s *Service) GetJob(ctx context.Context, req app.GetJobRequest) (*app.Job, error) {
-	var j app.Job
-	var err error
-	if req.WaitSeconds > 0 {
-		wait := min(req.WaitSeconds, app.MaxWaitSeconds)
-		j, err = s.sched.Wait(ctx, req.JobID, req.AfterRev, time.Duration(wait)*time.Second)
-	} else {
-		j, err = s.sched.Get(ctx, req.JobID)
-	}
-	if err != nil {
-		return nil, err
-	}
-	return &j, nil
-}
-
-// CancelJob implements app.Service.
-func (s *Service) CancelJob(ctx context.Context, jobID string) (*app.Job, error) {
-	j, err := s.sched.Cancel(ctx, jobID)
-	if err != nil {
-		return nil, err
-	}
-	return &j, nil
-}
-
-// RetryJob implements app.Service.
-func (s *Service) RetryJob(ctx context.Context, jobID string) (*app.Job, error) {
-	j, err := s.sched.Retry(ctx, jobID)
-	if err != nil {
-		return nil, err
-	}
-	return &j, nil
-}
-
-// --- videos ---
-
-// ListVideos implements app.Service.
-func (s *Service) ListVideos(ctx context.Context, req app.ListVideosRequest) (*app.VideoList, error) {
-	rows, next, err := s.st.ListVideos(ctx, store.VideoFilter{TitleContains: req.TitleContains, Limit: req.Limit, Cursor: req.Cursor})
-	if err != nil {
-		return nil, err
-	}
-	ids := make([]string, len(rows))
-	for i, r := range rows {
-		ids[i] = r.ID
-	}
-	latest, err := s.st.LatestJobsOfVideos(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	out := &app.VideoList{Videos: make([]app.Video, len(rows))}
-	for i, r := range rows {
-		out.Videos[i] = s.videoDTO(ctx, r, latest[r.ID])
-	}
-	if next != "" {
-		out.NextCursor = &next
-	}
-	return out, nil
-}
-
-// GetVideo implements app.Service.
-func (s *Service) GetVideo(ctx context.Context, videoID string) (*app.Video, error) {
-	v, err := s.st.GetVideo(ctx, videoID)
-	if err != nil {
-		return nil, err
-	}
-	latest, err := s.st.LatestJobOfVideo(ctx, videoID)
-	if err != nil {
-		return nil, err
-	}
-	dto := s.videoDTO(ctx, v, latest)
-	return &dto, nil
-}
-
-func (s *Service) videoDTO(ctx context.Context, v *store.Video, latest *store.JobWithStages) app.Video {
-	dto := app.Video{
-		VideoID: v.ID, Title: v.Title, Source: pipeline.VideoSource(v), DurationMs: v.DurationMs,
-		Language: strPtr(v.Language), TranscriptID: strPtr(v.CurrentTranscriptID), NoteID: strPtr(v.CurrentNoteID),
-		WebURL: s.base() + "/videos/" + v.ID, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt,
-		PlaybackReady: s.playbackArtifact(ctx, v.ID) != nil,
-	}
-	// §13.2: status is derived from the latest job and the current note.
-	dto.Status = app.VideoProcessing
-	if latest != nil {
-		dto.LatestJobID = &latest.ID
-		switch latest.Status {
-		case app.JobSucceeded:
-			dto.Status = app.VideoReady
-		case app.JobFailed, app.JobInterrupted:
-			dto.Status = app.VideoFailed
-		case app.JobCancelled:
-			dto.Status = app.VideoCancelled
-		}
-		// A failed reprocess does not hide the note the video already has.
-		if dto.Status != app.VideoProcessing && v.CurrentNoteID != "" {
-			dto.Status = app.VideoReady
-		}
-	}
-	return dto
-}
-
-func strPtr(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
-}
-
-// playbackArtifact returns the newest usable playback artifact of a video.
-func (s *Service) playbackArtifact(ctx context.Context, videoID string) *store.Artifact {
-	arts, err := s.st.ListArtifacts(ctx, videoID, store.KindPlayback)
-	if err != nil {
-		return nil
-	}
-	for i := len(arts) - 1; i >= 0; i-- {
-		if s.st.ArtifactPresent(arts[i]) {
-			return arts[i]
-		}
-	}
-	return nil
 }

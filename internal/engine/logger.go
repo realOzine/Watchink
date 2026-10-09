@@ -279,8 +279,5 @@ func NewLogger(dataDir string, opts LoggerOptions) (*Logger, error) {
 // AddSecret registers a value that must never appear in the log.
 func (l *Logger) AddSecret(secret string) { l.redactor.Add(secret) }
 
-// Redact masks secrets in s the same way log records are masked.
-func (l *Logger) Redact(s string) string { return l.redactor.Redact(s) }
-
 // Close closes the log file.
 func (l *Logger) Close() error { return l.file.Close() }

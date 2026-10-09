@@ -30,8 +30,6 @@ type Transcriber interface {
 	DetectLanguage(ctx context.Context, req DetectRequest) (string, error)
 	// Transcribe transcribes the whole file and returns the raw segments.
 	Transcribe(ctx context.Context, req Request) (*Result, error)
-	// Version identifies the engine build, for stage fingerprints (§7.4).
-	Version(ctx context.Context) string
 }
 
 // DetectRequest is the input of DetectLanguage.

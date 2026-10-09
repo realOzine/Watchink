@@ -17,6 +17,44 @@ make package-macos  # 发行 zip 和 SHA256SUMS
 make test lint
 ```
 
+## Linux（amd64，Ubuntu 24.04）
+
+状态：代码、构建脚本和 CI（`.github/workflows/linux.yml`）已经写好，但开发是在 macOS 上做的，只做过交叉编译和静态检查，**还没有在真实的 Linux 机器上运行过**。已验证和未验证的内容见 [`docs/spikes/v0-linux.md`](docs/spikes/v0-linux.md)。
+
+构建需要 Go 1.27、Node 24 和以下系统包：
+
+```sh
+sudo apt-get install build-essential pkg-config cmake libgtk-3-dev libwebkit2gtk-4.1-dev
+```
+
+```sh
+make whisper-linux   # 构建内嵌的 whisper-cli（静态链接，仅 CPU，需要支持 AVX2 的处理器）
+make frontend
+make desktop-linux   # dist/watchink-<版本>-linux-amd64：单个 ELF，包含桌面窗口和全部子命令
+make package-linux   # 再加上 dist/watchink-headless-<版本>-linux-amd64 和 SHA256SUMS
+make test lint-linux
+scripts/smoke-linux.sh dist/watchink-<版本>-linux-amd64 --gui   # 无图形会话下的冒烟检查
+scripts/e2e-linux.sh dist/watchink-<版本>-linux-amd64           # 真实工具加伪造在线模型的全流程
+```
+
+运行 `watchink-<版本>-linux-amd64` 需要以下系统包。它动态链接 GTK 和 WebKitGTK，所以即使只用 `serve`、`mcp` 或命令行，前两个包也必须装上；`watchink doctor` 会检查这四项：
+
+```sh
+sudo apt-get install libwebkit2gtk-4.1-0 libgtk-3-0t64 gstreamer1.0-plugins-good gstreamer1.0-libav
+```
+
+- 后两个包提供窗口内播放视频所需的 H.264 / AAC 解码。缺少时其余功能不受影响，也可以用 `watchink web` 在浏览器里播放。
+- 没有 WebKitGTK 的机器（服务器、容器）请使用 `watchink-headless-<版本>-linux-amd64`：纯 Go 静态链接，没有任何系统依赖，除了桌面窗口以外功能相同。
+- 没有图形会话（例如 SSH 登录）时，`serve`、`web`、`mcp` 和命令行照常可用，只有打开窗口会报错。
+- `watchink web` 用 `xdg-open` 打开浏览器（`xdg-utils` 包）。
+- 数据目录默认在 `${XDG_DATA_HOME:-~/.local/share}/watchink`，凭据在 `${XDG_CONFIG_HOME:-~/.config}/watchink`。
+- 可选的桌面集成（应用菜单里的图标）：把可执行文件以 `watchink` 为名放进 `PATH`，然后
+
+  ```sh
+  install -Dm644 build/linux/watchink.desktop ~/.local/share/applications/watchink.desktop
+  install -Dm644 build/linux/watchink.png ~/.local/share/icons/hicolor/256x256/apps/watchink.png
+  ```
+
 ## 使用
 
 ```sh

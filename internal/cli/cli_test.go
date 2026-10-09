@@ -1047,6 +1047,53 @@ func TestDoctor(t *testing.T) {
 			t.Errorf("%+v", res)
 		}
 	})
+	t.Run("desktop prerequisites", func(t *testing.T) {
+		webkit := SystemPrereq{Name: "WebKitGTK 4.1", Package: "libwebkit2gtk-4.1-0", Found: true}
+		libav := SystemPrereq{Name: "GStreamer libav 插件", Package: "gstreamer1.0-libav", Optional: true, Found: true}
+		run := func(list []SystemPrereq, args ...string) (result, map[string]any) {
+			h := newHarness(t)
+			h.deps.RunDesktop = func(context.Context, string) error { return nil }
+			h.deps.DesktopPrereqs = func() []SystemPrereq { return list }
+			res := h.run(append([]string{"doctor"}, args...)...)
+			if len(args) == 0 {
+				return res, nil
+			}
+			v := oneJSON(t, res.out)
+			for _, c := range v["checks"].([]any) {
+				if m := c.(map[string]any); m["name"] == "desktop" {
+					return res, m
+				}
+			}
+			t.Fatalf("no desktop check: %+v", res)
+			return res, nil
+		}
+
+		// Nothing to check (macOS) and everything found: ok either way.
+		if res, ch := run(nil, "--json"); res.code != 0 || ch["status"] != "ok" || ch["details"] != nil {
+			t.Errorf("no prerequisites: %+v", res)
+		}
+		if res, ch := run([]SystemPrereq{webkit, libav}, "--json"); res.code != 0 || ch["status"] != "ok" || len(ch["details"].(map[string]any)["prerequisites"].([]any)) != 2 {
+			t.Errorf("all found: %+v", res)
+		}
+
+		// Decoders missing: a warning that names the package, exit 0.
+		libav.Found = false
+		res, ch := run([]SystemPrereq{webkit, libav}, "--json")
+		if res.code != 0 || ch["status"] != "warn" || !strings.Contains(ch["hint"].(string), "apt install gstreamer1.0-libav") {
+			t.Errorf("decoder missing: %+v", res)
+		}
+		if res, _ := run([]SystemPrereq{webkit, libav}); res.code != 0 || !strings.Contains(res.out, "! 桌面界面") || !strings.Contains(res.out, "sudo apt install gstreamer1.0-libav") {
+			t.Errorf("decoder missing, human: %+v", res)
+		}
+
+		// WebView missing: the check fails and lists every missing package.
+		webkit.Found = false
+		res, ch = run([]SystemPrereq{webkit, libav}, "--json")
+		if res.code != app.ExitToolNotReady || ch["status"] != "fail" || ch["code"] != "TOOL_MISSING" ||
+			!strings.Contains(ch["hint"].(string), "apt install libwebkit2gtk-4.1-0 gstreamer1.0-libav") {
+			t.Errorf("webview missing: %+v", res)
+		}
+	})
 	t.Run("build mismatch is a warning", func(t *testing.T) {
 		h := newHarness(t)
 		h.remote.Engine.BuildID = "other"

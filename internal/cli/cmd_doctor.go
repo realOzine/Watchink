@@ -80,8 +80,10 @@ func (e *env) cmdDoctor() *cobra.Command {
 
 			// WebView prerequisite (§13.4): macOS ships WKWebView with the
 			// system, so only the presence of the desktop UI is reported.
+			// Linux takes the WebView and the media decoders from system
+			// packages (§16.3), which the injected check looks for.
 			if c.deps.RunDesktop != nil {
-				add(doctorCheck{Name: "desktop", Status: checkOK, Message: "此构建包含桌面界面"})
+				add(desktopCheck(c.deps.DesktopPrereqs))
 			} else {
 				add(doctorCheck{Name: "desktop", Status: checkSkipped, Message: "此构建不包含桌面界面（nogui）"})
 			}
@@ -119,6 +121,62 @@ func (e *env) cmdDoctor() *cobra.Command {
 			}}
 		}),
 	}
+}
+
+// SystemPrereq is one system library of the desktop window, as reported by
+// Deps.DesktopPrereqs.
+type SystemPrereq struct {
+	// Name says what the library is for; Package is the distribution
+	// package that provides it (Ubuntu 24.04 naming).
+	Name    string
+	Package string
+	// Optional libraries only affect video playback inside the window.
+	Optional bool
+	Found    bool
+}
+
+// desktopCheck reports the desktop UI of a GUI build together with its
+// system prerequisites. A missing WebView library fails the check; missing
+// media decoders are a warning, because everything but playback still works
+// and the browser UI remains available (D-11).
+func desktopCheck(prereqs func() []SystemPrereq) doctorCheck {
+	ch := doctorCheck{Name: "desktop", Status: checkOK, Message: "此构建包含桌面界面"}
+	if prereqs == nil {
+		return ch
+	}
+	list := prereqs()
+	if len(list) == 0 {
+		return ch
+	}
+	var required, playback, packages []string
+	items := make([]map[string]any, 0, len(list))
+	for _, p := range list {
+		items = append(items, map[string]any{"name": p.Name, "package": p.Package, "optional": p.Optional, "found": p.Found})
+		if p.Found {
+			continue
+		}
+		packages = append(packages, p.Package)
+		if p.Optional {
+			playback = append(playback, p.Name)
+		} else {
+			required = append(required, p.Name)
+		}
+	}
+	ch.Details = map[string]any{"prerequisites": items}
+	switch {
+	case len(required) > 0:
+		ch.Status, ch.Code = checkFail, app.CodeToolMissing
+		ch.Message = "缺少桌面窗口所需的系统库：" + strings.Join(append(required, playback...), "、")
+	case len(playback) > 0:
+		ch.Status = checkWarn
+		ch.Message = "此构建包含桌面界面，但缺少窗口内播放视频所需的系统库：" + strings.Join(playback, "、")
+	default:
+		ch.Message += "，所需系统库齐全"
+	}
+	if len(packages) > 0 {
+		ch.Hint = "Ubuntu 24.04 可运行 `sudo apt install " + strings.Join(packages, " ") + "`；也可以用 `watchink web` 在浏览器中使用"
+	}
+	return ch
 }
 
 // doctorEngine runs the checks that need a connected engine.

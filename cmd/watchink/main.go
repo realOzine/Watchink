@@ -52,6 +52,7 @@ func main() {
 		ResolveDataDir:  config.ResolveDataDir,
 		SetDataDir:      config.WriteLocation,
 		IsEngineRunning: engine.IsRunning,
+		DesktopPrereqs:  desktopPrereqs, // nil in nogui builds
 		Stdin:           os.Stdin,
 		IsTerminal: func() bool {
 			fi, err := os.Stdin.Stat()

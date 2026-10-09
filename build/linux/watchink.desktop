@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Watchink
+GenericName=Video Notes
+GenericName[zh_CN]=视频笔记
+Comment=Turn lecture videos into notes with timestamped citations
+Comment[zh_CN]=把课程视频变成带时间引用的笔记
+Exec=watchink
+Icon=watchink
+Terminal=false
+Categories=AudioVideo;Education;
+StartupNotify=true
+StartupWMClass=watchink

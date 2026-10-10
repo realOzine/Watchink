@@ -9,7 +9,7 @@
 
 Turn lecture videos into notes with time citations. Every point in a note links back to the second it came from.
 
-Transcription runs on your machine; audio and video never leave it. One file to download, nothing else to install.
+One file to download, nothing else to install.
 
 > The interface and the generated notes are in Simplified Chinese in v0. Lectures in Chinese and English are supported as input.
 

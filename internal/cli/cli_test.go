@@ -529,7 +529,9 @@ func TestImportWaitSecondsAsSeparateArgument(t *testing.T) {
 	h := newHarness(t)
 	scriptJobs(h, job(app.JobSucceeded, 3, 1))
 	res := h.run("import", "--wait", "600", "/v/a.mp4", "--json")
-	if res.code != 0 || h.remote.LastImport.Source.Path != "/v/a.mp4" {
+	// The CLI makes the path absolute, which on Windows adds a drive letter.
+	want, _ := filepath.Abs("/v/a.mp4")
+	if res.code != 0 || h.remote.LastImport.Source.Path != want {
 		t.Fatalf("%+v %+v", res, h.remote.LastImport)
 	}
 }
@@ -1100,6 +1102,32 @@ func TestDoctor(t *testing.T) {
 		res := h.run("doctor", "--json")
 		if v := oneJSON(t, res.out); res.code != 0 || statuses(v)["engine"] != "warn" {
 			t.Errorf("%+v", res)
+		}
+	})
+	t.Run("desktop webview", func(t *testing.T) {
+		h := newHarness(t)
+		h.deps.RunDesktop = func(context.Context, string) error { return nil }
+		// The system ships the WebView (macOS): nothing to report.
+		h.deps.WebView = func() (string, string, bool) { return "", "", false }
+		res := h.run("doctor", "--json")
+		if v := oneJSON(t, res.out); res.code != 0 || statuses(v)["desktop"] != "ok" {
+			t.Errorf("system webview: %+v", res)
+		}
+		// A required runtime that is installed is named with its version.
+		h.deps.WebView = func() (string, string, bool) { return "WebView2 运行时", "140.0.1.2", true }
+		res = h.run("doctor")
+		if res.code != 0 || !strings.Contains(res.out, "✓ 桌面界面") || !strings.Contains(res.out, "WebView2 运行时 140.0.1.2") {
+			t.Errorf("installed: %+v", res)
+		}
+		// A missing one is a warning with an install hint, not a failure:
+		// the CLI and MCP do not need it.
+		h.deps.WebView = func() (string, string, bool) { return "WebView2 运行时", "", true }
+		res = h.run("doctor", "--json")
+		if v := oneJSON(t, res.out); res.code != 0 || v["ok"] != true || statuses(v)["desktop"] != "warn" {
+			t.Errorf("missing: %+v", res)
+		}
+		if res = h.run("doctor"); res.code != 0 || !strings.Contains(res.out, "! 桌面界面") || !strings.Contains(res.out, "webview2") {
+			t.Errorf("missing, human: %+v", res)
 		}
 	})
 }

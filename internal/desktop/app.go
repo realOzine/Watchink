@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -307,8 +308,9 @@ func within(root, path string) bool {
 	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
-// RevealInFileManager shows a file or folder in Finder. Only paths that are
-// inside the engine's data dir after resolving symlinks are accepted (§15).
+// RevealInFileManager shows a file or folder in Finder (Explorer on Windows).
+// Only paths that are inside the engine's data dir after resolving symlinks
+// are accepted (§15).
 func (a *App) RevealInFileManager(path string) error {
 	if path == "" || !filepath.IsAbs(path) {
 		return app.E(app.CodeInvalidArgument, "路径必须是绝对路径")
@@ -375,6 +377,7 @@ func (a *App) AgentSetupInfo() (AgentSetup, error) {
 	if err != nil {
 		return AgentSetup{}, app.E(app.CodeInternal, "无法确定可执行文件路径：%v", err).WithCause(err)
 	}
+	exe = agentExecutable(exe)
 	cmd := []string{exe, "mcp"}
 
 	cfg := map[string]any{
@@ -396,9 +399,12 @@ func (a *App) AgentSetupInfo() (AgentSetup, error) {
 	}, nil
 }
 
-// shellQuote quotes s for a POSIX shell when it contains anything but plain
-// path characters.
+// shellQuote quotes s for the user's shell when it contains anything but
+// plain path characters: a POSIX shell, or cmd.exe / PowerShell on Windows.
 func shellQuote(s string) string {
+	if runtime.GOOS == "windows" {
+		return windowsQuote(s)
+	}
 	safe := s != ""
 	for _, r := range s {
 		switch {

@@ -81,9 +81,10 @@ func (e *env) cmdDoctor() *cobra.Command {
 			// WebView prerequisite (§13.4): macOS ships WKWebView with the
 			// system, so only the presence of the desktop UI is reported.
 			// Linux takes the WebView and the media decoders from system
-			// packages (§16.3), which the injected check looks for.
+			// packages (§16.3), which the injected check looks for. Windows
+			// needs the WebView2 runtime.
 			if c.deps.RunDesktop != nil {
-				add(desktopCheck(c.deps.DesktopPrereqs))
+				add(webViewCheck(desktopCheck(c.deps.DesktopPrereqs), c.deps.WebView))
 			} else {
 				add(doctorCheck{Name: "desktop", Status: checkSkipped, Message: "此构建不包含桌面界面（nogui）"})
 			}
@@ -176,6 +177,34 @@ func desktopCheck(prereqs func() []SystemPrereq) doctorCheck {
 	if len(packages) > 0 {
 		ch.Hint = "Ubuntu 24.04 可运行 `sudo apt install " + strings.Join(packages, " ") + "`；也可以用 `watchink web` 在浏览器中使用"
 	}
+	return ch
+}
+
+// webViewCheck adds the state of the system WebView to the desktop check on
+// platforms where it is a separate install (Windows: the WebView2 runtime;
+// macOS ships WKWebView). A missing runtime is a warning, not a failure:
+// everything but the window still works, and the window offers to install it.
+func webViewCheck(ch doctorCheck, probe func() (name, version string, required bool)) doctorCheck {
+	if probe == nil {
+		return ch
+	}
+	name, version, required := probe()
+	if !required {
+		return ch
+	}
+	if ch.Details == nil {
+		ch.Details = map[string]any{}
+	}
+	ch.Details["webview"], ch.Details["webview_version"] = name, version
+	if version == "" {
+		if ch.Status == checkOK {
+			ch.Status = checkWarn
+		}
+		ch.Message += "，但未检测到 " + name
+		ch.Hint = "打开桌面窗口时会提示下载安装；也可以先从 https://developer.microsoft.com/microsoft-edge/webview2/ 安装“常青版”运行时。CLI、MCP 和浏览器界面不受影响"
+		return ch
+	}
+	ch.Message += "；" + name + " " + version
 	return ch
 }
 

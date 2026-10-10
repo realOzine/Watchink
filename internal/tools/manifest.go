@@ -178,6 +178,17 @@ func safeFileName(s string) bool {
 // CurrentPlatform is the manifest platform key of the running program.
 func CurrentPlatform() string { return runtime.GOOS + "-" + runtime.GOARCH }
 
+// exeName returns the file name of the executable `name` on a manifest
+// platform: Windows only runs files with an executable extension. Downloaded
+// tools state their file names in the manifest (Platform.Bin); this is for
+// the embedded ones, whose names are derived.
+func exeName(platform, name string) string {
+	if strings.HasPrefix(platform, "windows-") {
+		return name + ".exe"
+	}
+	return name
+}
+
 // toolOrder is the display order of the well-known tools; others follow
 // alphabetically.
 var toolOrder = map[string]int{"ffmpeg": 1, "ffprobe": 2, "whisper-cli": 3, "yt-dlp": 4, "deno": 5}

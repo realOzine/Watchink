@@ -38,6 +38,7 @@ func main() {
 	deps := cli.Deps{
 		Connect:    client.Connect,
 		RunDesktop: runDesktop, // nil in nogui builds
+		WebView:    webView,    // nil in nogui builds
 		RunServe: func(ctx context.Context, o cli.ServeOptions) error {
 			return runEngine(ctx, o.DataDir, engine.ModeForeground, o.Port, o.Open)
 		},

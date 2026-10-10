@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"path/filepath"
 	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -15,6 +17,16 @@ import (
 
 	"watchink/internal/app"
 )
+
+// absPath turns a Unix-style absolute path into one that is also absolute on
+// the OS running the test: Windows needs a drive letter, and the import tool
+// only accepts absolute local paths.
+func absPath(p string) string {
+	if runtime.GOOS == "windows" {
+		return `C:` + filepath.FromSlash(p)
+	}
+	return p
+}
 
 // fakeRemote implements the part of app.Remote the MCP tools use; any other
 // method panics through the embedded nil interface.
@@ -513,14 +525,14 @@ func TestSchemasMatchGoTypes(t *testing.T) {
 func TestImportVideo(t *testing.T) {
 	fx := start(t)
 	r := fx.remotes[0]
-	out := fx.ok(ToolImportVideo, M{"source": "/Users/me/lec.mp4", "language": "zh", "reprocess_from": "note"})
+	out := fx.ok(ToolImportVideo, M{"source": absPath("/Users/me/lec.mp4"), "language": "zh", "reprocess_from": "note"})
 	if out["video_id"] != "vid_1" || out["job_id"] != "job_1" || out["status"] != "queued" || out["note_id"] != nil {
 		t.Errorf("out = %v", out)
 	}
 	if w, ok := out["warnings"].([]any); !ok || len(w) != 0 {
 		t.Errorf("warnings must be an array: %v", out["warnings"])
 	}
-	want := app.ImportRequest{Source: app.ImportSource{Type: app.SourceFile, Path: "/Users/me/lec.mp4"}, Language: "zh", ReprocessFrom: "note", RequestedBy: "mcp"}
+	want := app.ImportRequest{Source: app.ImportSource{Type: app.SourceFile, Path: absPath("/Users/me/lec.mp4")}, Language: "zh", ReprocessFrom: "note", RequestedBy: "mcp"}
 	if r.importReq != want {
 		t.Errorf("request = %+v", r.importReq)
 	}
@@ -543,7 +555,7 @@ func TestImportVideo(t *testing.T) {
 	}
 
 	r.err = app.E(app.CodePathNotAllowed, "路径不在允许的导入根目录内").WithHint("调整 security.import_roots")
-	e := fx.fail(ToolImportVideo, M{"source": "/etc/passwd"})
+	e := fx.fail(ToolImportVideo, M{"source": absPath("/etc/passwd")})
 	if e.Code != app.CodePathNotAllowed || e.Retryable || !e.UserActionRequired || e.Hint == "" {
 		t.Errorf("error = %+v", e)
 	}
@@ -742,8 +754,8 @@ func TestSchemaViolationsAreErrorObjects(t *testing.T) {
 		{ToolGetJob, M{"job_id": "job_1", "wait_seconds": -1}},
 		{ToolGetJob, M{"job_id": "job_1", "wait_seconds": "soon"}},
 		{ToolGetJob, M{"job_id": "job_1", "surprise": true}},
-		{ToolImportVideo, M{"source": "/a.mp4", "language": "fr"}},
-		{ToolImportVideo, M{"source": "/a.mp4", "reprocess_from": "probe"}},
+		{ToolImportVideo, M{"source": absPath("/a.mp4"), "language": "fr"}},
+		{ToolImportVideo, M{"source": absPath("/a.mp4"), "reprocess_from": "probe"}},
 		{ToolImportVideo, M{}},
 		{ToolListVideos, M{"limit": 101}},
 		{ToolListVideos, M{"limit": 0}},
@@ -864,7 +876,7 @@ func TestConcurrentCallsShareOneConnection(t *testing.T) {
 func TestDisconnectKeepsJobsRunning(t *testing.T) {
 	fx := start(t)
 	r := fx.remotes[0]
-	fx.ok(ToolImportVideo, M{"source": "/v/a.mp4"})
+	fx.ok(ToolImportVideo, M{"source": absPath("/v/a.mp4")})
 	fx.session.Close()
 	select {
 	case <-fx.done:

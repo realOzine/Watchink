@@ -3,7 +3,6 @@ package tools
 import (
 	"context"
 	"errors"
-	"syscall"
 
 	"watchink/internal/app"
 )
@@ -21,8 +20,7 @@ func ioErr(err error, what string) error {
 	if errors.As(err, &ae) {
 		return err
 	}
-	// TODO(windows): ERROR_DISK_FULL / ERROR_HANDLE_DISK_FULL are not mapped.
-	if errors.Is(err, syscall.ENOSPC) {
+	if isDiskFull(err) {
 		return app.E(app.CodeDiskFull, "磁盘空间不足：%s", what).
 			WithHint("请清理磁盘空间后重试。").WithCause(err)
 	}

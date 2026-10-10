@@ -113,7 +113,10 @@ func (s *Store) CommitFile(tmpAbs, rel string) (_ FileInfo, err error) {
 			os.Remove(tmpAbs)
 		}
 	}()
-	f, err := os.Open(tmpAbs)
+	// Read-write although the file is only read: Sync needs write access on
+	// Windows (FlushFileBuffers), where a read-only handle fails with
+	// "Access is denied".
+	f, err := os.OpenFile(tmpAbs, os.O_RDWR, 0)
 	if err != nil {
 		return FileInfo{}, fileErr("无法打开临时文件", err)
 	}
@@ -341,7 +344,7 @@ func (s *Store) SweepOrphans(ctx context.Context) (*SweepReport, error) {
 // fileErr maps a file system error to an *app.Error; a full disk becomes
 // DISK_FULL so the job error tells the user what to do.
 func fileErr(msg string, err error) *app.Error {
-	if errors.Is(err, syscall.ENOSPC) || errors.Is(err, syscall.EDQUOT) {
+	if errors.Is(err, syscall.ENOSPC) || errors.Is(err, syscall.EDQUOT) || osDiskFull(err) {
 		return app.E(app.CodeDiskFull, "磁盘空间不足").WithHint("请清理磁盘空间后重试").WithCause(err)
 	}
 	return app.E(app.CodeInternal, "%s：%v", msg, err).WithCause(err)

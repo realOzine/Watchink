@@ -202,7 +202,8 @@ func runFFmpeg(ctx context.Context, runner Runner, ffmpegPath string, args []str
 		_ = os.Remove(tmp)
 		return app.E(app.CodeToolFailed, "ffmpeg 没有生成输出文件").WithStage(stage)
 	}
-	if f, oerr := os.Open(tmp); oerr == nil {
+	// Opened for writing: Windows refuses to flush a read-only handle.
+	if f, oerr := os.OpenFile(tmp, os.O_RDWR, 0); oerr == nil {
 		_ = f.Sync()
 		f.Close()
 	}

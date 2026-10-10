@@ -7,7 +7,8 @@
 //
 // The package only builds with the `desktop` tag, and a runnable binary also
 // needs Wails' `production` tag and cgo (see scripts/build-macos.sh and
-// scripts/build-linux.sh; Linux adds the `webkit2_41` tag).
+// scripts/build-linux.sh; Linux adds the `webkit2_41` tag). Windows needs no
+// cgo (scripts/build-windows.sh).
 package desktop
 
 import (
@@ -27,12 +28,6 @@ import (
 
 	"watchink/internal/app"
 )
-
-// WebViewOrigin is the origin of the page inside the Wails WebView on macOS
-// (and Linux); the engine's CORS policy must allow exactly this value (§15,
-// S-04). Verified on macOS with cmd/_desktopsmoke.
-// TODO(windows): WebView2 serves the assets from http://wails.localhost.
-const WebViewOrigin = "wails://wails"
 
 // Window geometry: the default fits the player + notes layout of §14.1, the
 // minimum keeps both columns usable.
@@ -143,6 +138,7 @@ func Run(opts Options) error {
 			// (wails#2977). Stated here because passing options resets it.
 			WebviewGpuPolicy: linux.WebviewGpuPolicyNever,
 		},
+		Windows: windowsOptions(),
 	})
 }
 

@@ -13,6 +13,10 @@
 //	CGO_LDFLAGS="-framework UniformTypeIdentifiers -mmacosx-version-min=11.0" \
 //	go build -tags desktop,production -o smoke ./cmd/_desktopsmoke
 //
+// Build (Windows; a console program, so the result lines are visible):
+//
+//	go build -tags desktop,production -o smoke.exe ./cmd/_desktopsmoke
+//
 // Flags: -media <file> serves that file with Range support and adds the media
 // checks; -timeout bounds the whole run.
 package main
@@ -82,6 +86,11 @@ func (s *server) cors(next http.Handler) http.Handler {
 				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, PUT, DELETE, OPTIONS")
 				w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Last-Event-ID, X-WK-Request")
 				w.Header().Set("Access-Control-Max-Age", "600")
+				// Chromium (WebView2) may ask before a page reaches loopback;
+				// the engine answers the same way (internal/api/security.go).
+				if strings.EqualFold(r.Header.Get("Access-Control-Request-Private-Network"), "true") {
+					w.Header().Set("Access-Control-Allow-Private-Network", "true")
+				}
 			}
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -214,7 +223,9 @@ func main() {
 
 	page := strings.NewReplacer(
 		"__HAS_MEDIA__", fmt.Sprint(srv.media != ""),
-		"__DATA_DIR__", dataDir,
+		// Forward slashes: the value lands in a JavaScript string literal, where
+		// the backslashes of a Windows path would be read as escapes.
+		"__DATA_DIR__", filepath.ToSlash(dataDir),
 	).Replace(pageHTML)
 	assets := fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte(page)}}
 

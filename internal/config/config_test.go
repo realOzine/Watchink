@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -22,6 +23,36 @@ func isolate(t *testing.T) (cfgDir string) {
 	t.Setenv(EnvLLMAPIKey, "")
 	return cfgDir
 }
+
+// absPath turns a Unix-style absolute path into one that is also absolute on
+// the OS running the test: Windows needs a drive letter.
+func absPath(p string) string {
+	if runtime.GOOS == "windows" {
+		return `C:` + filepath.FromSlash(p)
+	}
+	return p
+}
+
+// setHome points os.UserHomeDir at dir (HOME on Unix, USERPROFILE on Windows).
+func setHome(t *testing.T, dir string) {
+	t.Helper()
+	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir)
+}
+
+// needSymlinks skips a test where the user may not create symbolic links,
+// which on Windows takes administrator rights or developer mode.
+func needSymlinks(t *testing.T) {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.Symlink(dir, filepath.Join(dir, "probe")); err != nil {
+		t.Skipf("symbolic links are not available: %v", err)
+	}
+}
+
+// unixPerms reports whether file modes carry Unix permission bits. Windows
+// has none: files there are private through the ACL of the user profile.
+const unixPerms = runtime.GOOS != "windows"
 
 func wantCode(t *testing.T, err error, code app.Code, keyPart string) {
 	t.Helper()
@@ -63,7 +94,7 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	s.LLM.APIKeyEnv = "MY_KEY"
 	s.LLM.Temperature = 0
 	s.Download.Mirrors = map[string]string{"huggingface.co": "https://hf-mirror.com"}
-	s.Security.ImportRoots = []string{"~", "/Volumes/Media"}
+	s.Security.ImportRoots = []string{"~", absPath("/Volumes/Media")}
 	s.Network.Proxy = "socks5://127.0.0.1:1080"
 	// Read-only fields must not reach the file.
 	s.DataDir = "/should/not/be/written"
@@ -80,7 +111,7 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fi.Mode().Perm() != 0o600 {
+	if unixPerms && fi.Mode().Perm() != 0o600 {
 		t.Fatalf("mode = %v, want 0600", fi.Mode().Perm())
 	}
 	raw, _ := os.ReadFile(p)
@@ -255,11 +286,13 @@ func TestApplyPatch(t *testing.T) {
 	cur.LLM.APIKeyConfigured = true
 	cur.Download.Mirrors = map[string]string{"github.com": "https://gh.example"}
 
+	media := absPath("/srv/media")
+	mediaJSON, _ := json.Marshal(media)
 	got, err := ApplyPatch(cur, decode(t, `{
 		"llm": {"model": "x", "temperature": 1, "max_concurrency": 5, "base_url": "https://api.example.com/v1"},
 		"download": {"mirrors": {"huggingface.co": "https://hf-mirror.com"}},
 		"engine": {"auto_resume": false, "port": 5001},
-		"security": {"import_roots": ["~", "/srv/media"]},
+		"security": {"import_roots": ["~", `+string(mediaJSON)+`]},
 		"asr": {"language": "zh"}
 	}`))
 	if err != nil {
@@ -273,7 +306,7 @@ func TestApplyPatch(t *testing.T) {
 		"github.com": "https://gh.example", "huggingface.co": "https://hf-mirror.com"}) {
 		t.Fatalf("mirrors must merge: %v", got.Download.Mirrors)
 	}
-	if !reflect.DeepEqual(got.Security.ImportRoots, []string{"~", "/srv/media"}) {
+	if !reflect.DeepEqual(got.Security.ImportRoots, []string{"~", media}) {
 		t.Fatalf("roots: %v", got.Security.ImportRoots)
 	}
 	// Untouched and read-only values survive.
@@ -391,11 +424,11 @@ func TestSecretsLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	di, _ := os.Stat(cfg)
-	if di.Mode().Perm() != 0o700 {
+	if unixPerms && di.Mode().Perm() != 0o700 {
 		t.Fatalf("dir mode = %v, want 0700", di.Mode().Perm())
 	}
 	fi, _ := os.Stat(p)
-	if fi.Mode().Perm() != 0o600 {
+	if unixPerms && fi.Mode().Perm() != 0o600 {
 		t.Fatalf("file mode = %v, want 0600", fi.Mode().Perm())
 	}
 	raw, _ := os.ReadFile(p)
@@ -415,7 +448,7 @@ func TestSecretsLifecycle(t *testing.T) {
 	if sec, _ := LoadSecrets(); sec.LLMAPIKey != "sk-other-000000000" {
 		t.Fatalf("overwrite failed")
 	}
-	if fi, _ := os.Stat(p); fi.Mode().Perm() != 0o600 {
+	if fi, _ := os.Stat(p); unixPerms && fi.Mode().Perm() != 0o600 {
 		t.Fatalf("mode after overwrite = %v", fi.Mode().Perm())
 	}
 	if err := SetSecret(app.SecretLLMAPIKey, ""); err != nil {
@@ -433,6 +466,7 @@ func TestSecretsLifecycle(t *testing.T) {
 }
 
 func TestSecretsRefuseSymlink(t *testing.T) {
+	needSymlinks(t)
 	cfg := isolate(t)
 	if err := os.MkdirAll(cfg, 0o700); err != nil {
 		t.Fatal(err)
@@ -564,8 +598,9 @@ func TestConfigDirIsolation(t *testing.T) {
 }
 
 func TestExpandRoots(t *testing.T) {
+	needSymlinks(t)
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	realHome, _ := filepath.EvalSymlinks(home)
 	sub := filepath.Join(home, "Movies")
 	os.Mkdir(sub, 0o755)
@@ -587,6 +622,7 @@ func TestExpandRoots(t *testing.T) {
 }
 
 func TestCheckImportPath(t *testing.T) {
+	needSymlinks(t)
 	base := t.TempDir()
 	root := filepath.Join(base, "root")
 	sibling := filepath.Join(base, "rootx") // shares the string prefix of root
@@ -663,7 +699,7 @@ func TestCheckImportPath(t *testing.T) {
 	}
 
 	// "~" as a root follows HOME.
-	t.Setenv("HOME", root)
+	setHome(t, root)
 	if _, err := CheckImportPath(inside, []string{"~"}); err != nil {
 		t.Fatalf("~ root: %v", err)
 	}

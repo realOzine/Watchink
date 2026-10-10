@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -70,7 +71,7 @@ func TestLoggerWritesRedactedJSONLines(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st, _ := os.Stat(engine.LogPath(dir)); st.Mode().Perm() != 0o600 {
+	if st, _ := os.Stat(engine.LogPath(dir)); runtime.GOOS != "windows" && st.Mode().Perm() != 0o600 {
 		t.Errorf("log mode = %v", st.Mode().Perm())
 	}
 	lines := strings.Split(strings.TrimSpace(string(data)), "\n")

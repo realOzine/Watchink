@@ -46,10 +46,11 @@ func (m *Manager) ensureTool(ctx context.Context, name string, report func(done,
 	}
 	if t.Embedded {
 		sum, _ := m.embeddedSHA(name)
+		bin := exeName(m.platform, name)
 		return m.installTool(ctx, name, toolSource{
 			version: t.Version,
 			origin:  sourceEmbedded,
-			plat:    Platform{SHA256: sum, Archive: ArchiveNone, Files: map[string]string{name: name}},
+			plat:    Platform{SHA256: sum, Archive: ArchiveNone, Files: map[string]string{bin: bin}, Bin: bin},
 		}, report)
 	}
 	plat := t.Platforms[m.platform]
@@ -89,7 +90,7 @@ func (m *Manager) installTool(ctx context.Context, name string, src toolSource, 
 	payload := filepath.Join(work, "payload")
 	switch src.origin {
 	case sourceEmbedded:
-		f, err := m.embedded.Open(m.platform + "/" + name)
+		f, err := m.embedded.Open(m.embeddedFile(name))
 		if err != nil {
 			_, missing := m.embeddedSHA(name)
 			if missing != nil {
@@ -117,7 +118,8 @@ func (m *Manager) installTool(ctx context.Context, name string, src toolSource, 
 		if err := m.download(ctx, src.plat.URL, src.plat.SHA256, src.plat.Size, payload, report); err != nil {
 			return err
 		}
-		defer os.Remove(payload)
+		// Removed, or handed to another tool that needs the same download.
+		defer m.releasePayload(name, src.plat.SHA256, payload)
 	}
 	if err := ctx.Err(); err != nil {
 		return err
@@ -241,27 +243,49 @@ func (m *Manager) partPath(name, sum string) string {
 	return filepath.Join(m.partDir(), name+"-"+sum[:16]+".part")
 }
 
+// releasePayload disposes of a tool's verified download once it is no longer
+// needed. Some upstreams ship several tools in one archive (the FFmpeg builds
+// for Windows hold both ffmpeg and ffprobe): instead of deleting the file it
+// is moved to where the next such tool, if it still has to be installed,
+// would download it to, and that download then finds it complete. The other
+// tool verifies the sha256 again, as it does for any resumed download.
+func (m *Manager) releasePayload(name, sum, payload string) {
+	inst := m.loadInstalled()
+	for _, other := range m.manifest.toolNames() {
+		if other == name || m.manifest.Tools[other].Platforms[m.platform].SHA256 != sum || m.toolInfo(inst, other).ready {
+			continue
+		}
+		next := m.partPath(other, sum)
+		if _, err := os.Lstat(next); err == nil {
+			continue // that tool already has a download of its own under way
+		}
+		if os.Rename(payload, next) == nil {
+			return
+		}
+	}
+	os.Remove(payload)
+}
+
 // replaceDir renames src to dst. An existing dst is first moved to trash and
 // put back if the second rename fails, so dst is never left missing.
 func replaceDir(src, dst, trash string) error {
 	if _, err := os.Lstat(dst); err == nil {
-		if err := os.Rename(dst, trash); err != nil {
+		if err := rename(dst, trash); err != nil {
 			return err
 		}
-		if err := os.Rename(src, dst); err != nil {
-			os.Rename(trash, dst)
+		if err := rename(src, dst); err != nil {
+			rename(trash, dst)
 			return err
 		}
 		os.RemoveAll(trash)
 		return nil
 	}
-	return os.Rename(src, dst)
+	return rename(src, dst)
 }
 
 // linkBin points <tools>/bin/<bin> at the active version (see BinDir). It is
 // a convenience; failures are logged and do not fail the install.
 func (m *Manager) linkBin(name, version, bin string) {
-	// TODO(windows): symlinks need privileges there; copy or hard-link instead.
 	if err := os.MkdirAll(m.binDir(), 0o755); err != nil {
 		m.log.Warn("tools: bin dir", "err", err)
 		return
@@ -269,11 +293,12 @@ func (m *Manager) linkBin(name, version, bin string) {
 	link := filepath.Join(m.binDir(), bin)
 	tmp := link + ".tmp"
 	os.Remove(tmp)
-	if err := os.Symlink(path.Join("..", name, version, bin), tmp); err != nil {
+	target := filepath.Join(m.versionDir(name, version), bin)
+	if err := makeLink(target, path.Join("..", name, version, bin), tmp); err != nil {
 		m.log.Warn("tools: link", "tool", name, "err", err)
 		return
 	}
-	if err := os.Rename(tmp, link); err != nil {
+	if err := rename(tmp, link); err != nil {
 		os.Remove(tmp)
 		m.log.Warn("tools: link", "tool", name, "err", err)
 	}
@@ -334,7 +359,7 @@ func (m *Manager) installModel(ctx context.Context, name, localFile string, repo
 	if err := os.Chmod(payload, 0o644); err != nil {
 		return ioErr(err, "安装模型")
 	}
-	if err := os.Rename(payload, filepath.Join(dir, md.FileName())); err != nil {
+	if err := rename(payload, filepath.Join(dir, md.FileName())); err != nil {
 		return ioErr(err, "安装模型")
 	}
 	err = m.updateInstalled(func(f *installedFile) {

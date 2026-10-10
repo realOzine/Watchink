@@ -134,7 +134,7 @@ func syncDir(dir string) {
 // disk is full (ENOSPC / EDQUOT, "No space left on device").
 func IsDiskFull(err error, toolOutput string) bool {
 	if err != nil {
-		if errors.Is(err, syscall.ENOSPC) || errors.Is(err, syscall.EDQUOT) || app.IsCode(err, app.CodeDiskFull) {
+		if errors.Is(err, syscall.ENOSPC) || errors.Is(err, syscall.EDQUOT) || osDiskFull(err) || app.IsCode(err, app.CodeDiskFull) {
 			return true
 		}
 		if containsDiskFull(err.Error()) {
@@ -149,6 +149,8 @@ func containsDiskFull(s string) bool {
 	return strings.Contains(s, "no space left on device") ||
 		strings.Contains(s, "disk quota exceeded") ||
 		strings.Contains(s, "errno 28") ||
+		strings.Contains(s, "not enough space on the disk") || // Windows system message
+
 		strings.Contains(s, "磁盘空间不足")
 }
 

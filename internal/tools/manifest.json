@@ -19,6 +19,14 @@
           "size": 151017172,
           "archive": "tar.xz",
           "files": {"ffmpeg-n9.0.2-17-g2a571b6068-linux64-gpl-9.0/bin/ffmpeg": "ffmpeg"}
+        },
+        "windows-amd64": {
+          "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-30-13-08/ffmpeg-n9.0.2-17-g2a571b6068-win64-gpl-9.0.zip",
+          "sha256": "a0e45723c72141975f51d8666302e614711745f3102b704ca3f82c897a58d278",
+          "size": 194034585,
+          "archive": "zip",
+          "files": {"ffmpeg-n9.0.2-17-g2a571b6068-win64-gpl-9.0/bin/ffmpeg.exe": "ffmpeg.exe"},
+          "bin": "ffmpeg.exe"
         }
       }
     },
@@ -40,6 +48,14 @@
           "size": 151017172,
           "archive": "tar.xz",
           "files": {"ffmpeg-n9.0.2-17-g2a571b6068-linux64-gpl-9.0/bin/ffprobe": "ffprobe"}
+        },
+        "windows-amd64": {
+          "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-30-13-08/ffmpeg-n9.0.2-17-g2a571b6068-win64-gpl-9.0.zip",
+          "sha256": "a0e45723c72141975f51d8666302e614711745f3102b704ca3f82c897a58d278",
+          "size": 194034585,
+          "archive": "zip",
+          "files": {"ffmpeg-n9.0.2-17-g2a571b6068-win64-gpl-9.0/bin/ffprobe.exe": "ffprobe.exe"},
+          "bin": "ffprobe.exe"
         }
       }
     },
@@ -65,6 +81,14 @@
           "size": 40446224,
           "archive": "none",
           "files": {"yt-dlp_linux": "yt-dlp"}
+        },
+        "windows-amd64": {
+          "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp.exe",
+          "sha256": "66674953fe251b89f4d08c5f0e35e0728679bd67ab3d7d05c0562af101dd3e7a",
+          "size": 17840399,
+          "archive": "none",
+          "files": {"yt-dlp.exe": "yt-dlp.exe"},
+          "bin": "yt-dlp.exe"
         }
       }
     },
@@ -86,6 +110,14 @@
           "size": 41596794,
           "archive": "zip",
           "files": {"deno": "deno"}
+        },
+        "windows-amd64": {
+          "url": "https://github.com/denoland/deno/releases/download/v2.9.7/deno-x86_64-pc-windows-msvc.zip",
+          "sha256": "a0c3101b4158d1dfb7d6a78a7bf0f3de80c96bb423c152beec8beb22786f2238",
+          "size": 42630221,
+          "archive": "zip",
+          "files": {"deno.exe": "deno.exe"},
+          "bin": "deno.exe"
         }
       }
     },

@@ -15,6 +15,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -80,7 +81,8 @@ func (f *fakeExec) run(ctx context.Context, path string, args ...string) ([]byte
 	if err != nil {
 		return nil, err
 	}
-	if st, _ := os.Stat(path); st.Mode().Perm()&0o111 == 0 {
+	// Windows has no executable bit; there the file name decides.
+	if st, _ := os.Stat(path); runtime.GOOS != "windows" && st.Mode().Perm()&0o111 == 0 {
 		return nil, errors.New("not executable")
 	}
 	if bytes.Contains(data, []byte("BROKEN")) {
@@ -265,7 +267,7 @@ func TestEnsureHappyPath(t *testing.T) {
 		if string(data) != want {
 			t.Errorf("%s content = %q", name, data)
 		}
-		if info, _ := os.Stat(p); info.Mode().Perm() != 0o755 {
+		if info, _ := os.Stat(p); runtime.GOOS != "windows" && info.Mode().Perm() != 0o755 {
 			t.Errorf("%s mode = %v", name, info.Mode())
 		}
 		if data, _ := os.ReadFile(filepath.Join(m.BinDir(), name)); string(data) != want {
@@ -940,6 +942,24 @@ func TestDefaultManifest(t *testing.T) {
 		p, ok := mf.Tools[name].Platforms["linux-amd64"]
 		if !ok || !strings.HasPrefix(p.URL, "https://") || p.Size == 0 || strings.Contains(p.URL, "latest") {
 			t.Errorf("%s linux-amd64 entry is not pinned: %+v", name, p)
+		}
+	}
+	// Windows: pinned like the others, and every executable is a ".exe" that
+	// the entry names as its bin.
+	for _, name := range []string{ToolFFmpeg, ToolFFprobe, ToolYtDlp, ToolDeno} {
+		p, ok := mf.Tools[name].Platforms["windows-amd64"]
+		if !ok || !strings.HasPrefix(p.URL, "https://") || p.Size == 0 || strings.Contains(p.URL, "latest") {
+			t.Errorf("%s windows-amd64 entry is not pinned: %+v", name, p)
+		}
+		if p.Bin != name+".exe" {
+			t.Errorf("%s windows-amd64 bin = %q", name, p.Bin)
+		}
+		installed := false
+		for _, dst := range p.Files {
+			installed = installed || dst == p.Bin
+		}
+		if !installed {
+			t.Errorf("%s windows-amd64 files do not install %s: %v", name, p.Bin, p.Files)
 		}
 	}
 	for _, name := range []string{ModelLargeV3TurboQ5, ModelSmallQ5, ModelSileroVAD} {

@@ -19,9 +19,7 @@
 # needs the UniformTypeIdentifiers framework and a deployment target, which
 # the wails CLI would otherwise inject through CGO_CFLAGS / CGO_LDFLAGS.
 #
-# TODO(windows) / TODO(linux): packaging for the other platforms is not
-# implemented yet (Linux needs the extra webkit2_41 tag; Windows depends on
-# the outcome of S-02).
+# The other platforms have their own scripts: build-linux.sh, build-windows.sh.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -1,6 +1,6 @@
 # Watchink 架构与代码导读
 
-更新：2026-10-10。只在 macOS arm64 上实现和验证。
+更新：2026-10-10。在 macOS arm64 上实现并验证；Windows amd64 和 Linux amd64 已实现，但只做过交叉编译，尚未在真机上运行。
 
 本文描述代码**现在的样子**，目标是让第一次接触这个项目的人读完后能看懂它、知道去哪里改。文档分工：
 
@@ -79,7 +79,7 @@
 | 客户端连不上就自己拉起一个分离的 Engine；并发拉起时只有一个拿到锁，其余立即退出 | `client/connect.go` |
 | `build_id` 不同且 Engine 空闲时，客户端让它退出并换成新的 | `client/connect.go` |
 | 后台 Engine 空闲（无任务、无事件流订阅者、一段时间无请求）后自动退出 | `engine/run.go` 的 `isIdle` |
-| 外部工具都放进独立进程组；Engine 被强杀后由 `_guard` 清理整组 | `procx/sys_darwin.go` |
+| 外部工具随 Engine 一起消失：macOS 用进程组加 `_guard` 守护进程，Linux 用进程组加 `Pdeathsig`，Windows 用 Job Object | `procx/sys_darwin.go`、`sys_linux.go`、`sys_windows.go`（Unix 共用部分在 `sys_unix.go`） |
 
 入口是 `cmd/watchink/main.go`，不到 150 行，只做装配：把各包的函数填进 `cli.Deps`，把 `service.Open` 交给 `engine.Run`。读它就能看到所有角色是怎么接起来的。桌面代码只在带 `desktop` 构建标签时编译（`desktop_gui.go` / `desktop_nogui.go`）。
 
@@ -299,7 +299,7 @@ exports/  uploads/  tools/  models/
 | `media` | `Probe`（ffprobe）、`ExtractAudio` / `PlanPlayback` / `BuildPlayback`（ffmpeg）、`Download`（yt-dlp，含错误分类）、`NormalizeURL`（链接规范化与主机名白名单）、`SampleHash`（抽样哈希去重） |
 | `asr` | `WhisperCpp.DetectLanguage` / `Transcribe` 调用 whisper-cli 并解析它的 JSON；`PostProcess` 去空片段、折叠连续重复的幻觉片段、保证时间单调 |
 
-工具来源：whisper-cli 由 `third_party/whisper/build.sh` 构建（Metal）；ffmpeg / ffprobe、yt-dlp 首次需要时下载；deno 只在第一次导入 YouTube 链接时下载；whisper 模型来自 Hugging Face 的固定 revision，可走镜像或本地导入。清单目前只有 `darwin-arm64` 的条目。
+工具来源：whisper-cli 由 `third_party/whisper/build.sh` 构建（macOS 用 Metal，Linux 和 Windows 为 CPU 版）；ffmpeg / ffprobe、yt-dlp 首次需要时下载；deno 只在第一次导入 YouTube 链接时下载；whisper 模型来自 Hugging Face 的固定 revision，可走镜像或本地导入。清单包含 `darwin-arm64`、`linux-amd64`、`windows-amd64` 三个平台的条目。Linux 的 ffmpeg 是 `tar.xz` 包，由 `tools/xz.go` 里自带的纯 Go 解码器解压（依赖清单不允许引入新的第三方库）。
 
 ## 13. 前端
 
@@ -349,9 +349,10 @@ go run ./internal/bench/cmd/loadtest                    # 并发 HTTP 压测
 | `api` ↔ `client` | client 对着真实的 api 处理器加假 service 做往返测试 |
 | `cli`、`mcpserver` | 假的 `app.Service` |
 | 前端 | vitest 单元测试；Playwright 跑在模拟服务上 |
-| `pipeline`、`service` | **没有 Go 测试**。它们依赖真实的工具管理器和子进程，目前由 `scripts/e2e-macos.sh` 覆盖：导入、重复导入、重新生成笔记三条路径，并检查各阶段的复用情况 |
+| `pipeline` | **没有 Go 测试**。它依赖真实的工具管理器和子进程，目前由 `scripts/e2e-macos.sh` 覆盖：导入、重复导入、重新生成笔记三条路径，并检查各阶段的复用情况 |
+| `service` | 并发导入（同一文件、不同文件）、缓存、字幕片段选择；其余用例由端到端脚本和压测覆盖 |
 
-有测试的各包语句覆盖率在约 80%–97% 之间；`pipeline` 和 `service` 为 0%，把总数拉到约 71%。
+有测试的有测试的各包语句覆盖率大多在 80%–97% 之间；`pipeline` 为 0%。
 
 ## 16. 推荐阅读顺序
 
@@ -383,11 +384,11 @@ go run ./internal/bench/cmd/loadtest                    # 并发 HTTP 压测
 
 | 项 | 现状 |
 | --- | --- |
-| 平台 | 只有 macOS arm64。Windows / Linux 的 `procx`、工具清单、打包都只有带构建标签的占位 |
+| 平台 | macOS arm64 已验证。Windows amd64、Linux amd64 的进程管理、工具清单、打包脚本和 CI 工作流已写好并能交叉编译，但没有在真机上运行过；验证记录见 `spikes/v0-linux.md`、`spikes/v0-windows.md` |
 | Web 鉴权 | 可选开关加同源规则，没有 `v0.md` 最初设计的登录码和 cookie；`v0.md` 相应章节尚未同步 |
 | VAD | 默认关闭：实测 VAD 下时间映射错误并会丢内容 |
 | 英文转写 | 加了固定提示词，否则输出无大小写和标点 |
 | 真实在线模型 | 结构化输出支持矩阵（S-10）和笔记质量未用真实服务验证，全流程是用假服务跑通的 |
 | 桌面窗口 | 只做过程序化启动检查，没有系统的人工操作验证 |
-| 自动化测试 | `pipeline`、`service` 没有 Go 测试；规格中的故障注入构建和依赖规则检查没有落地；没有 CI |
+| 自动化测试 | `pipeline` 没有 Go 测试，`service` 只覆盖了并发导入、缓存和字幕选择；规格中的故障注入构建和依赖规则检查没有落地；CI 工作流（`.github/workflows/`）已写好但从未运行 |
 | 引用粒度 | 引用只能定位到片段起点，单个片段可长达约 28 秒 |

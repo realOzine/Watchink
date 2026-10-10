@@ -1,7 +1,6 @@
-# Watchink build entry points (docs/v0.md §16). macOS arm64 only for now.
-# TODO(windows) / TODO(linux): GUI packaging for the other platforms is not
-# implemented (Linux needs the extra `webkit2_41` build tag, Windows depends
-# on S-02); only the pure-Go `build` target is portable.
+# Watchink build entry points (docs/v0.md §16). The unsuffixed targets build
+# for macOS arm64; Linux and Windows have their own blocks further down
+# (*-linux, *-windows). The pure-Go `build` target is portable.
 
 SHELL := /bin/bash
 .DEFAULT_GOAL := build

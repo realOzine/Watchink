@@ -1,0 +1,117 @@
+# macOS arm64: build, test and package Watchink on a GitHub runner
+# (docs/v0.md §16.2, §16.3).
+#
+# macOS is the platform the project is developed and verified on by hand
+# (docs/spikes/v0-p0.md); this workflow repeats the automated part of that on
+# a clean machine: the Go suite with the race detector, the frontend tests,
+# the browser end-to-end tests against the mock engine, and the release zip.
+name: macos
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build, test, package
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Check the runner architecture
+        run: |
+          test "$(uname -m)" = "arm64" || { echo "expected an arm64 runner, got $(uname -m)"; exit 1; }
+          sw_vers
+
+      # The embedded whisper-cli (Metal). The script bootstraps CMake into
+      # the checkout when the runner has none.
+      - name: Build whisper-cli
+        run: |
+          make whisper
+          bin=internal/tools/embedded/bin/darwin-arm64/whisper-cli
+          file "$bin"
+          test "$(shasum -a 256 "$bin" | cut -d' ' -f1)" = "$(cut -d' ' -f1 "$bin.sha256")"
+          "$bin" --help >/dev/null
+
+      - name: Frontend (typecheck, unit tests, build)
+        working-directory: frontend
+        run: |
+          corepack pnpm install --frozen-lockfile
+          corepack pnpm test
+          corepack pnpm build
+
+      # gofmt + go vet, including the desktop-tagged code (needs cgo).
+      - name: Lint
+        run: make lint
+
+      - name: go test (race detector)
+        run: go test -race ./...
+
+      - name: go test (desktop shell)
+        run: |
+          CGO_ENABLED=1 CGO_CFLAGS="-mmacosx-version-min=13.0" \
+          CGO_LDFLAGS="-framework UniformTypeIdentifiers -mmacosx-version-min=13.0" \
+            go test -tags desktop ./internal/desktop/...
+
+      # The same checks for the other platforms' code paths that a macOS
+      # machine can do: they must at least compile.
+      - name: Cross-compile for Linux and Windows
+        run: |
+          for os in linux windows; do
+            GOOS=$os GOARCH=amd64 CGO_ENABLED=0 go build -tags nogui ./...
+            GOOS=$os GOARCH=amd64 CGO_ENABLED=0 go vet -tags nogui ./...
+          done
+
+      - name: Browser end-to-end tests (mock engine)
+        working-directory: frontend
+        run: |
+          corepack pnpm e2e:install
+          corepack pnpm e2e
+
+      - name: Build and package Watchink.app
+        run: SKIP_FRONTEND=1 make package-macos
+
+      - name: Inspect the app
+        run: |
+          set -euo pipefail
+          ls -l dist
+          (cd dist && shasum -a 256 -c SHA256SUMS)
+          app=dist/Watchink.app/Contents/MacOS/Watchink
+          file "$app"
+          codesign --verify --deep --strict dist/Watchink.app
+          # The executable inside the bundle is the CLI as well (D-02).
+          "$app" version
+          export WATCHINK_DATA_DIR="$RUNNER_TEMP/data" WATCHINK_CONFIG_DIR="$RUNNER_TEMP/cfg"
+          "$app" doctor || true
+          "$app" videos list --json
+          "$app" engine stop --force || true
+
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: watchink-macos-arm64
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            dist/Watchink-*-macos-arm64.zip
+            dist/SHA256SUMS
+            internal/tools/embedded/bin/darwin-arm64/whisper-cli.sha256
+            .devdata/tmp/frontend/test-results

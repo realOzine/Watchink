@@ -1,3 +1,5 @@
+<p align="center"><img src="build/appicon.png" width="112" alt="Watchink 图标"></p>
+
 # Watchink
 
 **简体中文** · [English](README.en.md)
@@ -22,7 +24,7 @@
 | Linux（x64） | `watchink-<版本>-linux-amd64` | `chmod +x` 后运行 |
 | Linux 服务器 / 容器 | `watchink-headless-<版本>-linux-amd64` | 同上，无任何系统依赖，没有桌面窗口 |
 
-> **还没有发布正式版本。** 现在可以从 [Actions](https://github.com/realOzine/Watchink/actions) 页面下载最近一次构建的产物（需要登录 GitHub，保留 14 天），或者[从源码构建](docs/building.md)。首个版本发布后会放在 [Releases](https://github.com/realOzine/Watchink/releases)。
+**[下载最新版本 →](https://github.com/realOzine/Watchink/releases/latest)**　同一页面的 `SHA256SUMS` 可用来校验下载的文件。
 
 各平台需要留意的一件事：
 
@@ -71,19 +73,39 @@ watchink web                             # 在浏览器里使用
 
 ## 给 Agent 用
 
-Watchink 自带 MCP 服务器（stdio）。在支持 MCP 的客户端里加上：
+把下面这段话发给你的 Agent（Claude Code、Cursor 等能执行命令的 Agent），它会自己下载 Watchink 并接入 MCP：
 
-```json
-{
-  "mcpServers": {
-    "watchink": { "command": "watchink", "args": ["mcp"] }
-  }
-}
+```text
+请帮我安装 Watchink 并把它的 MCP 服务接入你自己。
+
+1. 打开 https://github.com/realOzine/Watchink/releases/latest ，按我的系统下载对应的文件：
+   - macOS（Apple 芯片）：Watchink-<版本>-macos-arm64.zip，解压后把 Watchink.app 放到 /Applications。
+     可执行文件是 /Applications/Watchink.app/Contents/MacOS/Watchink
+   - Windows（x64）：Watchink-<版本>-windows-amd64.zip，解压到 %LOCALAPPDATA%\Programs\Watchink。
+     可执行文件是其中的 watchink.com
+   - Linux（x64）：没有图形界面或没装 WebKitGTK 时下载 watchink-headless-<版本>-linux-amd64，
+     否则下载 watchink-<版本>-linux-amd64；保存为 ~/.local/bin/watchink 并加上可执行权限
+2. 用同一页面上的 SHA256SUMS 校验下载的文件。
+3. 运行 `<可执行文件> doctor`，把结果告诉我。
+4. 把 Watchink 加到你的 MCP 配置里：名称 watchink，传输方式 stdio，
+   命令是上面可执行文件的绝对路径，参数是 mcp。
+5. 确认你能看到 import_video、get_job、get_note、get_transcript 这些工具，
+   并告诉我是否需要重启才能生效。
+
+生成笔记需要一个兼容 OpenAI 接口的在线模型。请问我要服务地址、模型名和 API Key，
+不要自己编造；拿到后运行 `<可执行文件> setup --llm-base-url <地址> --llm-model <模型名> --llm-api-key-stdin --prepare`，
+API Key 从标准输入传入，不要写进命令行或任何文件。
 ```
 
-`watchink` 不在 `PATH` 里时换成可执行文件的绝对路径；桌面应用的“设置 → Agent 接入”里有一段可以直接发给 Agent 的接入说明。
+接入之后可以这样用：
 
-Agent 可以导入视频、查询进度、读取笔记和字幕、导出。生成笔记用的仍是你配置的在线模型，不是 Agent 自己的模型。
+- 把这个视频导入 Watchink 并生成笔记：`https://www.bilibili.com/video/BV…`
+- 列出 Watchink 里已有的视频。
+- 读取《<视频标题>》的笔记，总结三个要点，并附上对应的时间点。
+- 在《<视频标题>》的字幕里找到讲解“<关键词>”的片段，告诉我大约在几分几秒。
+- 把《<视频标题>》的笔记导出为 Markdown。
+
+已经装好 Watchink 的话，只需要第 4、5 步；桌面应用的“设置 → Agent 接入”里有一段填好了路径的版本。生成笔记用的是你配置的在线模型，不是 Agent 自己的模型。
 
 ## 隐私
 
@@ -93,7 +115,7 @@ Agent 可以导入视频、查询进度、读取笔记和字幕、导出。生�
 
 ## 当前状态
 
-v0，尚未发布正式版本。
+早期版本（v0.0.1）。
 
 | 平台 | 自动化验证 | 人工验证 |
 | --- | --- | --- |

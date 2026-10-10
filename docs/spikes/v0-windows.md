@@ -137,3 +137,18 @@
 4. 处理中在任务管理器里结束 Engine 进程，确认子进程随之消失，重新连接后任务续跑。
 5. 把 Agent 接入信息里的片段配置到一个真实的 MCP 客户端，调用 `list_videos`。
 6. 在设置页选择文件、导出并“在资源管理器中显示”，播放视频并点击笔记里的时间引用。
+
+## CI 首次运行结果（2026-10-10）
+
+本文其余部分写于代码尚未在 Windows 上运行过的时候。之后 `.github/workflows/windows.yml` 在 GitHub 的 `windows-latest` runner 上运行并通过（提交 `453b197`），下列各项因此有了真机证据：
+
+- whisper-cli 用 MSVC 静态运行时构建成功，并在含中文的路径下完成了一次真实转写。
+- `go test ./...` 全部通过，包括 Job Object 进程管理的测试。
+- 发行 zip 打包成功，内含 `Watchink.exe` 和 `watchink.com`。
+- S-02 中可以自动化的部分：`watchink.com jobs list --json` 在 cmd 和 PowerShell 中输出完整并可接管道；`mcp` 能通过 stdio 应答 `initialize`。
+- S-04：WebView2 中的页面能跨源访问本机 API（鉴权、预检、事件流）。
+- 端到端流程通过。
+
+仍然没有验证：从资源管理器双击启动（CI 只能从 PowerShell 启动）；窗口内的实际操作和视频播放；真实的 MCP 客户端；SmartScreen 和杀毒软件的反应；WebView2 缺失时的安装引导；YouTube / Bilibili 的真实下载；真实的在线模型；代码签名。
+
+首次运行中发现并修复的问题：4 个 client 测试在 Engine 停止前就清理临时目录；两处测试写死了 Unix 路径或可执行位；桌面冒烟页假设了 Unix 路径；工作流里 Git Bash 的 curl 写不了非 ASCII 路径、`sha256sum` 对带反斜杠的路径会转义输出。

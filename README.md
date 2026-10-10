@@ -2,7 +2,7 @@
 
 本地优先的视频知识工具：把课程视频变成带时间引用的中文 Markdown 笔记。桌面、Web、CLI、MCP 四个入口共用同一个后台 Engine 和同一份数据。
 
-当前状态：v0 已在 macOS arm64 上实现并完成开发机验证。Windows amd64 和 Linux amd64 的代码、构建脚本和 CI 工作流已经写好并能交叉编译通过，但还没有在真机上运行过，以 CI 的首次运行结果为准（见 [`docs/spikes/v0-linux.md`](docs/spikes/v0-linux.md)、[`docs/spikes/v0-windows.md`](docs/spikes/v0-windows.md)）。设计见 [`docs/v0.md`](docs/v0.md)，范围与验收见 [`docs/roadmap.md`](docs/roadmap.md)，验证记录见 [`docs/spikes/v0-p0.md`](docs/spikes/v0-p0.md)。
+当前状态：v0 已在 macOS arm64 上实现并完成开发机验证。Windows amd64 和 Linux amd64 已实现，并在 GitHub Actions 的真机 runner 上通过了构建、测试和端到端流程；窗口内的实际操作和播放还没有人工验证（见 [`docs/spikes/v0-linux.md`](docs/spikes/v0-linux.md)、[`docs/spikes/v0-windows.md`](docs/spikes/v0-windows.md)）。设计见 [`docs/v0.md`](docs/v0.md)，范围与验收见 [`docs/roadmap.md`](docs/roadmap.md)，验证记录见 [`docs/spikes/v0-p0.md`](docs/spikes/v0-p0.md)。
 
 ## 构建（macOS arm64）
 

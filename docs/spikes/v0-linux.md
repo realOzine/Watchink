@@ -91,3 +91,18 @@
 - `Makefile` 和 `scripts/build-macos.sh` 开头、`sys_other.go`、`cores_other.go` 里的 `TODO(linux)` 注释没有动，以免和 Windows 分支冲突；它们现在已经过时。`README.md` 的状态行和 `docs/architecture.md` 同理。
 - `manifest.json` 里 ffmpeg / ffprobe 的 `license` 字段仍然只提到 macOS 的构建来源。
 - 新增的包 `internal/sysreq` 和 `build/linux`（只含嵌入的图标）不在 `docs/architecture.md` 的包列表里。
+
+## CI 首次运行结果（2026-10-10）
+
+本文其余部分写于代码尚未在 Linux 上运行过的时候。之后 `.github/workflows/linux.yml` 在 GitHub 的 `ubuntu-24.04` runner 上运行并通过（提交 `453b197`），下列各项因此有了真机证据：
+
+- whisper-cli 静态构建成功，产物无动态依赖，能运行。
+- `go test ./...` 全部通过，包括进程组、`Pdeathsig` 和 `/proc/<pid>/exe` 相关的测试。
+- 带 `desktop,production,webkit2_41` 标签的 cgo 桌面程序编译成功，链接的是 WebKitGTK 4.1。
+- 无显示环境下 `serve`、CLI、`mcp` 可用（S-03）。
+- 工具清单里的 ffmpeg、ffprobe、yt-dlp、deno 真实下载、校验、解压并通过冒烟测试；自带的 xz 解码器解开了真实的 ffmpeg 包。
+- 端到端：导入本地视频 → CPU 转写 → 生成笔记（假模型）→ 导出，以及脚本里的取消与清理检查。
+
+仍然没有验证：窗口的实际显示、交互和视频播放（Xvfb 下的窗口检查只是参考，不作为门槛）；`xdg-open` 和文件管理器定位；YouTube / Bilibili 的真实下载；真实的在线模型；Ubuntu 24.04 以外的发行版。
+
+首次运行中发现并修复的问题：转写进度会被 stdout 上的字幕正文误触发（只在 Linux 的流到达顺序下暴露，三个平台都受影响）；端到端脚本没有显式安装 yt-dlp、没有把临时目录加入允许导入的范围。

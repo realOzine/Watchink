@@ -1,43 +1,59 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <!-- Watchink app icon. Flat shapes only; the hair clip is a play button.
-       Render with: node scripts/render-icon.mjs (then `make icon`). -->
+  <!-- Watchink app icon: ink-style line drawing, black on white. The hair
+       clip is a play button. Render with `make icon`. -->
   <defs>
     <clipPath id="tile"><rect x="100" y="100" width="824" height="824" rx="186"/></clipPath>
+    <g id="eye">
+      <!-- upper lash: a tapered crescent with an outer flick -->
+      <path fill="#111" d="M378 592 C390 556 452 540 482 574 L476 586 C450 562 404 568 392 596 Z"/>
+      <path fill="#111" d="M378 592 L362 580 L384 578 Z"/>
+      <ellipse cx="432" cy="604" rx="25" ry="31" fill="#111"/>
+      <circle cx="441" cy="593" r="9" fill="#FFF"/>
+      <circle cx="423" cy="617" r="4.5" fill="#FFF"/>
+      <path d="M404 640 Q431 650 458 640" fill="none" stroke="#111" stroke-width="4" stroke-linecap="round"/>
+      <path d="M392 540 Q432 524 472 536" fill="none" stroke="#111" stroke-width="5" stroke-linecap="round"/>
+    </g>
   </defs>
   <g clip-path="url(#tile)">
-    <rect x="100" y="100" width="824" height="824" fill="#CDEBE5"/>
+    <rect x="100" y="100" width="824" height="824" fill="#FFFFFF"/>
 
-    <!-- back hair: a bob -->
-    <path fill="#3B2F4A" d="M226 540 C226 318 366 214 512 214 C658 214 798 318 798 540 L798 704 C798 762 760 792 708 792 L316 792 C264 792 226 762 226 704 Z"/>
-    <!-- ahoge -->
-    <path fill="#3B2F4A" d="M500 232 C478 160 540 122 598 156 C562 162 542 190 548 236 Z"/>
+    <g transform="rotate(-5 512 600)">
+      <!-- shadowed hair behind the neck -->
+      <path fill="#111" d="M300 640 C300 742 358 812 424 834 L600 834 C666 812 724 742 724 640 Z"/>
+      <!-- neck: white against the shadowed hair, no outline needed -->
+      <path fill="#FFF" d="M476 760 L470 890 L556 890 L550 760 Z"/>
+      <!-- face -->
+      <path fill="#FFF" d="M318 400 L706 400 L706 540 C700 668 620 770 512 790 C404 770 324 668 318 540 Z"/>
+      <path d="M322 560 C334 672 412 766 512 786 C612 766 690 672 702 560" fill="none" stroke="#111" stroke-width="9" stroke-linecap="round"/>
 
-    <!-- neck and shoulders -->
-    <rect x="462" y="720" width="100" height="120" fill="#F7D3BF"/>
-    <path fill="#2F6F6A" d="M272 1024 C272 880 380 812 512 812 C644 812 752 880 752 1024 Z"/>
-    <path fill="#FFFFFF" d="M452 814 L512 878 L572 814 C552 808 532 806 512 806 C492 806 472 808 452 814 Z"/>
+      <use href="#eye" transform="translate(432 600) scale(1.2) translate(-432 -600)"/>
+      <use href="#eye" transform="translate(1024 0) scale(-1 1) translate(432 600) scale(1.2) translate(-432 -600)"/>
+      <path d="M507 664 Q512 669 517 664" fill="none" stroke="#111" stroke-width="4" stroke-linecap="round"/>
+      <path d="M497 712 Q512 721 527 712" fill="none" stroke="#111" stroke-width="6" stroke-linecap="round"/>
+      <!-- blush: three short strokes per cheek -->
+      <g stroke="#111" stroke-width="3.5" stroke-linecap="round" opacity="0.55">
+        <path d="M356 676 l10 -16 M374 680 l10 -16 M392 682 l10 -16"/>
+        <path d="M622 682 l10 -16 M640 680 l10 -16 M658 676 l10 -16"/>
+      </g>
 
-    <!-- face -->
-    <ellipse cx="512" cy="566" rx="212" ry="204" fill="#FFE6D5"/>
-
-    <!-- bangs -->
-    <path fill="#3B2F4A" d="M298 612 C270 384 390 262 512 262 C634 262 754 384 726 612 C720 548 700 498 664 462 L648 520 C612 486 572 466 528 458 L514 516 C478 480 434 462 388 458 L372 514 C336 528 308 562 298 612 Z"/>
-
-    <!-- play-button hair clip -->
-    <g transform="rotate(-14 352 420)">
-      <rect x="306" y="378" width="96" height="84" rx="24" fill="#FFC94A"/>
-      <path fill="#FFFFFF" d="M340 398 L340 442 L378 420 Z"/>
+      <!-- hair: one outline; the bangs are its inner edge, the side locks end in points -->
+      <path fill="#FFF" stroke="#111" stroke-width="10" stroke-linejoin="round"
+            d="M304 744 C258 702 224 600 232 470 C240 290 380 196 520 196 C660 196 790 290 796 470 C804 600 770 702 724 744 L720 702 L700 726 C712 660 716 590 712 528 C716 494 708 462 692 436 C684 470 668 496 644 514 C646 478 636 446 616 420 C590 462 552 490 506 504 C512 470 506 440 492 416 C460 462 416 494 366 506 C372 480 372 456 366 434 C340 462 322 500 318 544 C312 600 314 664 328 726 L308 702 Z"/>
+      <!-- strands -->
+      <g fill="none" stroke="#111" stroke-width="6" stroke-linecap="round">
+        <path d="M516 200 C496 270 488 340 492 412"/>
+        <path d="M384 252 C332 302 300 362 290 424"/>
+        <path d="M652 248 C706 298 736 360 744 424"/>
+        <path d="M272 470 C266 540 272 600 288 652"/>
+        <path d="M756 474 C762 542 756 602 740 654"/>
+      </g>
+      <!-- play-button hair clip -->
+      <path fill="#111" stroke="#111" stroke-width="14" stroke-linejoin="round" d="M676 300 L676 368 L734 334 Z"/>
     </g>
 
-    <!-- eyes -->
-    <ellipse cx="428" cy="604" rx="33" ry="46" fill="#2E2A3B"/>
-    <ellipse cx="596" cy="604" rx="33" ry="46" fill="#2E2A3B"/>
-    <circle cx="440" cy="585" r="13" fill="#FFFFFF"/>
-    <circle cx="608" cy="585" r="13" fill="#FFFFFF"/>
-
-    <!-- blush and mouth -->
-    <ellipse cx="372" cy="662" rx="40" ry="21" fill="#FF9AA2" opacity="0.55"/>
-    <ellipse cx="652" cy="662" rx="40" ry="21" fill="#FF9AA2" opacity="0.55"/>
-    <path d="M490 676 Q512 700 534 676" fill="none" stroke="#B5524A" stroke-width="10" stroke-linecap="round"/>
+    <!-- shoulders and collar -->
+    <path fill="#111" d="M286 1024 C286 898 392 842 512 842 C632 842 738 898 738 1024 Z"/>
+    <path d="M436 852 L512 926 L588 852" fill="none" stroke="#FFF" stroke-width="9" stroke-linejoin="round" stroke-linecap="round"/>
   </g>
+  <rect x="100.5" y="100.5" width="823" height="823" rx="186" fill="none" stroke="#E2E2E2"/>
 </svg>

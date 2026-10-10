@@ -19,7 +19,10 @@ const Token = "bench-token"
 // Engine is a real service behind the real HTTP handler, on a seeded
 // temporary data directory. Only the listener is httptest's.
 type Engine struct {
-	URL     string
+	URL string
+	// DataDir is the engine's data directory, for runs that add their own
+	// load next to the HTTP clients.
+	DataDir string
 	Library *Library
 	Client  *http.Client
 	close   func()
@@ -64,7 +67,7 @@ func StartEngine(ctx context.Context, shape Shape) (*Engine, error) {
 	}
 	tr := &http.Transport{MaxIdleConns: 512, MaxIdleConnsPerHost: 512}
 	return &Engine{
-		URL: srv.URL, Library: lib, Client: &http.Client{Transport: tr},
+		URL: srv.URL, DataDir: dataDir, Library: lib, Client: &http.Client{Transport: tr},
 		close: func() {
 			tr.CloseIdleConnections()
 			srv.Close()

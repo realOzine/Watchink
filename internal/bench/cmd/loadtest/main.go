@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"watchink/internal/bench"
+	"watchink/internal/store"
 )
 
 func main() {
@@ -25,6 +26,7 @@ func main() {
 	conc := flag.Int("c", 32, "concurrent clients")
 	dur := flag.Duration("d", 5*time.Second, "duration per scenario")
 	cold := flag.Bool("cold", false, "cycle through every video instead of a hot set")
+	writers := flag.Int("writers", 0, "background writers storing new transcripts while the clients read")
 	flag.Parse()
 
 	fmt.Fprintf(os.Stderr, "seeding %d videos × %d segments…\n", *videos, *segments)
@@ -43,6 +45,11 @@ func main() {
 		set, access = eng.Library.VideoIDs, "cold: every video in turn"
 	}
 	fmt.Printf("library: %d videos × %d segments · %d clients · %s per scenario · %s\n\n", *videos, *segments, *conc, *dur, access)
+	stopWriters := func() {}
+	if *writers > 0 {
+		stopWriters = startWriters(eng, *writers, *segments)
+		fmt.Printf("background load: %d writers, each storing %d-segment transcripts in a loop\n\n", *writers, *segments)
+	}
 	fmt.Printf("%-18s %10s %9s %9s %9s %9s %10s\n", "endpoint", "req/s", "p50", "p95", "p99", "max", "resp")
 
 	for _, ep := range bench.Endpoints {
@@ -53,6 +60,54 @@ func main() {
 	report("mixed", run(eng, *conc, *dur, func(i int) string {
 		return bench.Endpoints[i%n].Path(set, eng.Library.JobIDs, i/n)
 	}))
+	stopWriters()
+}
+
+// startWriters models jobs finishing while people read: each writer stores a
+// full transcript (the largest write the engine does) in a loop, through a
+// second handle on the same database, so it competes with the engine for
+// SQLite's single write lock exactly as another transaction would. The
+// returned function stops the writers and prints their rate.
+func startWriters(eng *bench.Engine, n, segments int) (stop func()) {
+	ctx, cancel := context.WithCancel(context.Background())
+	st, err := store.Open(ctx, eng.DataDir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "loadtest: writers:", err)
+		os.Exit(1)
+	}
+	var wg sync.WaitGroup
+	var written, failed atomic.Int64
+	start := time.Now()
+	for w := 0; w < n; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := w; ctx.Err() == nil; i += n {
+				videoID := eng.Library.VideoIDs[i%len(eng.Library.VideoIDs)]
+				art, err := st.PutArtifact(ctx, &store.Artifact{VideoID: videoID, Kind: store.KindASRRaw, Fingerprint: fmt.Sprintf("loadtest-%d-%d", w, i)})
+				if err == nil {
+					tr := &store.Transcript{VideoID: videoID, ArtifactID: art.ID, Language: "zh", Engine: "loadtest", Model: "loadtest"}
+					err = st.InsertTranscript(ctx, tr, bench.Segments(segments))
+				}
+				if ctx.Err() != nil {
+					return
+				}
+				if err != nil {
+					failed.Add(1)
+					continue
+				}
+				written.Add(1)
+			}
+		}()
+	}
+	return func() {
+		took := time.Since(start)
+		cancel()
+		wg.Wait()
+		st.Close()
+		fmt.Printf("\nwriters: %d transcripts stored (%.0f/s, %.0f segments/s), %d failed\n",
+			written.Load(), float64(written.Load())/took.Seconds(), float64(written.Load())*float64(segments)/took.Seconds(), failed.Load())
+	}
 }
 
 type result struct {

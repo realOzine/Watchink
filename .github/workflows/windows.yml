@@ -93,7 +93,7 @@ jobs:
         run: bash third_party/whisper/build.sh windows amd64
       - name: whisper-cli smoke (real transcription, non-ASCII paths)
         run: |
-          set -euo pipefail
+          set -euxo pipefail
           . third_party/whisper/VERSION
           bin="$PWD/internal/tools/embedded/bin/windows-amd64/whisper-cli.exe"
           [ "$(sha256sum "$bin" | awk '{print $1}')" = "$(awk '{print $1}' "$bin.sha256")" ]

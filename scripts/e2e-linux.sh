@@ -73,7 +73,9 @@ printf 'sk-fake-e2e-key-000' | "$BIN" config set-secret llm_api_key >/dev/null
 
 step "tools prepare (downloads, verifies, extracts, smoke-tests)"
 "$BIN" tools prepare --wait
-"$BIN" tools prepare deno --wait
+# yt-dlp and deno are only needed for link imports, so the plain prepare
+# above leaves them out; ask for them by name.
+"$BIN" tools prepare yt-dlp deno --wait
 TOOLS="$("$BIN" tools status --json)"
 json '"\n".join("%-28s %-8s %s" % (i["name"], i["status"], i.get("version", "")) for i in j["items"])' <<<"$TOOLS"
 [[ "$(json 'all(i["status"] == "ready" for i in j["items"] if i["required"] or i["name"] == "deno")' <<<"$TOOLS")" == "True" ]] \

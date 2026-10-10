@@ -7,7 +7,7 @@ import (
 )
 
 // Service is the complete set of v0 use cases. The engine implements it
-// in-process; internal/client implements it over HTTP, so the CLI, the MCP
+// in-process; internal/transport/client implements it over HTTP, so the CLI, the MCP
 // server and the desktop shell are written against this interface only.
 //
 // Every method returns *Error (see errors.go) for business failures.
@@ -70,7 +70,7 @@ type PlaybackFile struct {
 }
 
 // Local is the engine-side service: Service plus the operations that only
-// make sense inside the engine process. internal/api serves a Local.
+// make sense inside the engine process. internal/transport/api serves a Local.
 type Local interface {
 	Service
 
@@ -116,5 +116,5 @@ type ConnectOptions struct {
 }
 
 // Connector connects to (and by default spawns) the engine of a data dir.
-// internal/client.Connect is the production implementation.
+// internal/transport/client.Connect is the production implementation.
 type Connector func(ctx context.Context, opts ConnectOptions) (Remote, error)

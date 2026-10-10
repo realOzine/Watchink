@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds a static whisper-cli from the whisper.cpp release pinned in VERSION
-# and installs it, with its sha256, where internal/tools embeds it from.
+# and installs it, with its sha256, where internal/capability/tools embeds it from.
 #
 #   third_party/whisper/build.sh <os> <arch>      e.g. build.sh darwin arm64
 #
@@ -25,7 +25,7 @@ REPO=$(cd "$HERE/../.." && pwd)
 SRC_DIR="$HERE/src"
 CACHE_DIR="$HERE/.cache"
 BUILD_DIR="$HERE/build/$TARGET_OS-$TARGET_ARCH"
-OUT_DIR="$REPO/internal/tools/embedded/bin/$TARGET_OS-$TARGET_ARCH"
+OUT_DIR="$REPO/internal/capability/tools/embedded/bin/$TARGET_OS-$TARGET_ARCH"
 
 # Pinned CMake used only when the host has none. The universal macOS tarball
 # is the official Kitware release; the hash comes from cmake-<v>-SHA-256.txt.

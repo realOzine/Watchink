@@ -5,7 +5,7 @@ package main
 import (
 	"context"
 
-	"watchink/internal/cli"
+	"watchink/internal/entry/cli"
 )
 
 // runDesktop is nil in builds without the desktop tag: the bare command

@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"watchink/internal/app"
-	"watchink/internal/events"
-	"watchink/internal/jobs"
-	"watchink/internal/notes"
-	"watchink/internal/store"
+	"watchink/internal/capability/notes"
+	"watchink/internal/core/events"
+	"watchink/internal/core/jobs"
+	"watchink/internal/infra/store"
 )
 
 // lecture is a one-hour lecture: about 900 segments, 60 cited points.

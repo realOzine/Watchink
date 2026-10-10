@@ -7,10 +7,10 @@ import (
 	"net/http/httptest"
 	"os"
 
-	"watchink/internal/api"
-	"watchink/internal/config"
-	"watchink/internal/service"
-	"watchink/internal/store"
+	"watchink/internal/core/service"
+	"watchink/internal/infra/config"
+	"watchink/internal/infra/store"
+	"watchink/internal/transport/api"
 )
 
 // Token is the bearer token of an Engine started by StartEngine.

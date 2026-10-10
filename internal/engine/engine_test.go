@@ -17,9 +17,9 @@ import (
 	"testing"
 	"time"
 
-	"watchink/internal/api/apitest"
 	"watchink/internal/app"
 	"watchink/internal/engine"
+	"watchink/internal/transport/api/apitest"
 )
 
 // running is an in-process engine under test.

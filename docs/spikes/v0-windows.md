@@ -40,28 +40,28 @@
 - 两个文件由同一个 `main` 包、同一组构建标签（`desktop,production`）构建，只差一个链接参数，`build_id` 相同。因此任意一个都能拉起或复用另一个启动的 Engine（§5.2）。
 - 两个文件放在同一个文件夹时，输入 `watchink` 得到的是 `watchink.com`：`PATHEXT` 默认把 `.COM` 排在 `.EXE` 前面。Visual Studio 的 `devenv.com` / `devenv.exe` 用的是同一个办法。
 - `watchink.com` 不带参数或执行 `desktop` 时同样打开窗口，控制台在窗口关闭前被占用，与在 macOS 终端里直接运行可执行文件一致。
-- 桌面设置页里的 Agent 接入信息在 Windows 上指向同目录的 `watchink.com`（`internal/desktop/winshell.go`），命令行片段用 cmd 和 PowerShell 都认识的双引号。
+- 桌面设置页里的 Agent 接入信息在 Windows 上指向同目录的 `watchink.com`（`internal/entry/desktop/winshell.go`），命令行片段用 cmd 和 PowerShell 都认识的双引号。
 
 代价：发行物从一个 exe 变成一个 zip，里面是两份各二十多 MB 的程序（各自内嵌了前端和 whisper-cli）；`.com` 扩展名少见，需要在说明里交代。
 
-移植中发现的一个相关问题：cobra 在 Windows 上默认拒绝运行从资源管理器启动的程序（打印“这是命令行工具”后退出）。这会让双击 `Watchink.exe` 没有任何反应，已在 `internal/cli` 中关闭该行为。CI 从 PowerShell 启动窗口，覆盖不到这一点，需要人工双击确认。
+移植中发现的一个相关问题：cobra 在 Windows 上默认拒绝运行从资源管理器启动的程序（打印“这是命令行工具”后退出）。这会让双击 `Watchink.exe` 没有任何反应，已在 `internal/entry/cli` 中关闭该行为。CI 从 PowerShell 启动窗口，覆盖不到这一点，需要人工双击确认。
 
 ## 实现要点
 
 | 领域 | 做法 | 位置 |
 | --- | --- | --- |
-| 子进程（§5.5） | 每个子进程以 `CREATE_SUSPENDED \| CREATE_NO_WINDOW` 启动，放进一个新建的 `KILL_ON_JOB_CLOSE` Job Object 后再恢复运行，子进程派生的进程无法逃出 Job。取消即 `TerminateJobObject`（Windows 没有 SIGTERM，“先礼后兵”的两步是同一个调用）。Engine 持有唯一的 Job 句柄，Engine 无论怎样退出，系统都会关闭句柄并终止整棵进程树，不需要 `_guard` | `internal/procx/sys_windows.go` |
+| 子进程（§5.5） | 每个子进程以 `CREATE_SUSPENDED \| CREATE_NO_WINDOW` 启动，放进一个新建的 `KILL_ON_JOB_CLOSE` Job Object 后再恢复运行，子进程派生的进程无法逃出 Job。取消即 `TerminateJobObject`（Windows 没有 SIGTERM，“先礼后兵”的两步是同一个调用）。Engine 持有唯一的 Job 句柄，Engine 无论怎样退出，系统都会关闭句柄并终止整棵进程树，不需要 `_guard` | `internal/infra/procx/sys_windows.go` |
 | 与 Unix 的差异 | `runner.go` 新增两个钩子：`attachGroup`（启动后建 Job）和 `releaseGroup`（结束后关句柄）；非 Windows 平台是空实现，macOS 行为不变 | `runner.go`、`group_other.go` |
 | 拉起 Engine（§5.2） | `DETACHED_PROCESS \| CREATE_NEW_PROCESS_GROUP \| CREATE_NO_WINDOW`，并先尝试 `CREATE_BREAKAWAY_FROM_JOB`：终端和 MCP 宿主常把子进程关在随宿主一起终止的 Job 里，而 Engine 必须比客户端活得久（D-01）；宿主不允许脱离时退回普通方式 | 同上 |
 | 残留进程（§7.6） | `QueryFullProcessImageName` 比对路径（不区分大小写）后 `TerminateProcess`；运行着当前程序自身的进程永不终止 | 同上 |
 | 浏览器 / 资源管理器 | `rundll32 url.dll,FileProtocolHandler <url>`；`explorer.exe /select,"<路径>"`，命令行自行拼接，因为 explorer 不按通用规则解析引号 | 同上 |
-| 物理核心数 | `GetLogicalProcessorInformation` 统计 `RelationProcessorCore`，失败时退回 `runtime.NumCPU()` | `internal/asr/cores_windows.go` |
+| 物理核心数 | `GetLogicalProcessorInformation` 统计 `RelationProcessorCore`，失败时退回 `runtime.NumCPU()` | `internal/capability/asr/cores_windows.go` |
 | `engine.json` | Windows 不允许替换正被其它进程打开的文件，而客户端在 Engine 启动期间每 100 ms 读一次：替换失败时短暂重试 | `internal/engine/replace_windows.go` |
 | 文件权限 | Windows 没有 0600；`engine.json`、`secrets.toml`、日志依靠用户配置目录的 ACL 保护。代码照常调用 `Chmod`（在 Windows 上无害），测试里的权限断言在 Windows 上跳过 | `engine`、`config` 的测试 |
-| 工具安装 | 可执行文件名带 `.exe`：下载的工具由清单的 `bin` 指定，内嵌的 whisper-cli 按平台推导（`windows-amd64/whisper-cli.exe` 和 `whisper-cli.exe.sha256`）。`tools/bin` 下用硬链接代替符号链接（普通用户无权创建符号链接），不支持硬链接时复制。安装时的重命名在被占用时重试 2 秒，应对杀毒软件扫描刚写入的程序。`ERROR_DISK_FULL` 映射为 `DISK_FULL` | `internal/tools/sys_windows.go` 等 |
-| 一个压缩包、两个工具 | BtbN 的 zip 同时包含 ffmpeg 和 ffprobe（194 MB）。第一个工具装完后把已校验的下载文件交给下一个需要它的工具，避免下载两次 | `internal/tools/install.go` 的 `releasePayload` |
-| 桌面 | WebView 页面来源是 `http://wails.localhost`（Engine 的 CORS 白名单里原本就有）；WebView2 用户数据放在 `%LOCALAPPDATA%\Watchink\WebView2`；缺少 WebView2 运行时时，由 Wails 弹出中文提示，用户确认后下载并运行微软的引导安装程序（§16.3） | `internal/desktop` |
-| `doctor` | 桌面检查项在 Windows 上报告 WebView2 运行时的版本；缺失时是警告而不是失败，因为 CLI 和 MCP 不依赖它 | `internal/cli/cmd_doctor.go` |
+| 工具安装 | 可执行文件名带 `.exe`：下载的工具由清单的 `bin` 指定，内嵌的 whisper-cli 按平台推导（`windows-amd64/whisper-cli.exe` 和 `whisper-cli.exe.sha256`）。`tools/bin` 下用硬链接代替符号链接（普通用户无权创建符号链接），不支持硬链接时复制。安装时的重命名在被占用时重试 2 秒，应对杀毒软件扫描刚写入的程序。`ERROR_DISK_FULL` 映射为 `DISK_FULL` | `internal/capability/tools/sys_windows.go` 等 |
+| 一个压缩包、两个工具 | BtbN 的 zip 同时包含 ffmpeg 和 ffprobe（194 MB）。第一个工具装完后把已校验的下载文件交给下一个需要它的工具，避免下载两次 | `internal/capability/tools/install.go` 的 `releasePayload` |
+| 桌面 | WebView 页面来源是 `http://wails.localhost`（Engine 的 CORS 白名单里原本就有）；WebView2 用户数据放在 `%LOCALAPPDATA%\Watchink\WebView2`；缺少 WebView2 运行时时，由 Wails 弹出中文提示，用户确认后下载并运行微软的引导安装程序（§16.3） | `internal/entry/desktop` |
+| `doctor` | 桌面检查项在 Windows 上报告 WebView2 运行时的版本；缺失时是警告而不是失败，因为 CLI 和 MCP 不依赖它 | `internal/entry/cli/cmd_doctor.go` |
 | whisper-cli | MSVC，`/MT` 静态运行时，仅 CPU，指令集基线为 AVX2 / FMA / F16C / BMI2。构建后嵌入 `activeCodePage=UTF-8` 清单：whisper-cli 以窄字符串接收参数，不加清单时，路径里只要有系统代码页之外的字符（例如中文用户名下的数据目录）就会失败 | `third_party/whisper/build.sh`、`whisper-cli.manifest` |
 | 资源 | 图标（资源 ID 3，Wails 从这个 ID 加载窗口图标）、清单（DPI 感知 per-monitor v2、Common Controls 6、asInvoker）、版本信息，由构建脚本用 MinGW 的 `windres` 编译成 `.syso`，构建结束后删除。WebView2 用 Wails 默认的纯 Go 加载器，不随包携带 `WebView2Loader.dll` | `build/windows/`、`scripts/build-windows.sh` |
 
@@ -86,8 +86,8 @@
 | `… go build -tags desktop,production -ldflags "-H windowsgui" ./cmd/watchink` | 通过；PE 头的子系统字段为 2（GUI） |
 | 同上但不带 `-H windowsgui` | 通过；子系统字段为 3（控制台） |
 | `… go build -tags desktop,production ./cmd/_desktopsmoke` | 通过 |
-| 每个包的 `GOOS=windows go test -c`，以及 `-tags desktop ./internal/desktop/` | 全部能编译（包括只在 Windows 上运行的 `procx` 测试） |
-| `go build ./... && go test ./... && make lint`，以及带 `desktop` 标签的 `internal/desktop` 测试 | 通过，macOS 行为未变 |
+| 每个包的 `GOOS=windows go test -c`，以及 `-tags desktop ./internal/entry/desktop/` | 全部能编译（包括只在 Windows 上运行的 `procx` 测试） |
+| `go build ./... && go test ./... && make lint`，以及带 `desktop` 标签的 `internal/entry/desktop` 测试 | 通过，macOS 行为未变 |
 | `bash scripts/build-windows.sh package`（交叉构建，含前端） | 生成 `dist/Watchink-0.1.0-dev-windows-amd64.zip`，内含两个各 22.6 MB 的程序；没有 whisper-cli，没有 `windres` 所以没有图标、清单和版本信息 |
 | `go run scripts/make-ico.go` | 生成 9 个尺寸的 `.ico`，逐项检查了目录和位图头，并目视检查了 48 px 的图像 |
 | `go run scripts/mcpsmoke.go bin/watchink`（macOS 的开发构建） | 通过；用来确认冒烟程序本身的逻辑 |
@@ -101,7 +101,7 @@
 
 | 项 | 现状 | 由谁验证 |
 | --- | --- | --- |
-| Job Object：启动、取消杀进程树、Engine 死亡后清理（S-08） | 能编译，逻辑未运行 | CI：`internal/procx` 的 Windows 测试；e2e 结束后检查无残留进程 |
+| Job Object：启动、取消杀进程树、Engine 死亡后清理（S-08） | 能编译，逻辑未运行 | CI：`internal/infra/procx` 的 Windows 测试；e2e 结束后检查无残留进程 |
 | `CREATE_SUSPENDED` 后经线程快照恢复子进程 | 能编译，逻辑未运行。这一步一旦出错，所有外部工具都无法启动 | CI：同上 |
 | 分离拉起 Engine、脱离宿主 Job、单例锁（S-09） | 能编译，逻辑未运行 | CI：cmd 步骤的冷启动、MCP 步骤；三客户端并发未覆盖 |
 | S-02 标准 1：双击无控制台 | 推理 | CI 只检查 PE 子系统和“桌面进程没有 conhost 子进程”；**从资源管理器双击需要人工** |
@@ -124,8 +124,8 @@
 
 这些位于本次没有改动的包里，交由负责这些包的人处理：
 
-- `internal/store/files.go` 的 `CommitFile` 以只读方式打开临时文件后调用 `Sync()`。Windows 的 `FlushFileBuffers` 要求句柄有写权限，会返回“拒绝访问”，于是**所有产物登记都会失败**。改成以读写方式打开即可。
-- `internal/store/files.go` 的 `fileErr` 只认 `ENOSPC` / `EDQUOT`；Windows 的磁盘已满是 `ERROR_DISK_FULL`（112）和 `ERROR_HANDLE_DISK_FULL`（39）。
+- `internal/infra/store/files.go` 的 `CommitFile` 以只读方式打开临时文件后调用 `Sync()`。Windows 的 `FlushFileBuffers` 要求句柄有写权限，会返回“拒绝访问”，于是**所有产物登记都会失败**。改成以读写方式打开即可。
+- `internal/infra/store/files.go` 的 `fileErr` 只认 `ENOSPC` / `EDQUOT`；Windows 的磁盘已满是 `ERROR_DISK_FULL`（112）和 `ERROR_HANDLE_DISK_FULL`（39）。
 - 正在被读取的文件在 Windows 上不能被替换或删除：例如正在播放时重新生成 `playback.mp4`，或导出文件正被下载时再次导出。
 - Windows 上默认的导入根目录 `~` 不包含其它盘符；这是策略问题，目前靠文档说明。
 

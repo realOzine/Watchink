@@ -73,7 +73,7 @@ if [[ ! -f internal/webui/dist/index.html ]]; then
 fi
 
 # --- whisper-cli -----------------------------------------------------------
-WHISPER_BIN="internal/tools/embedded/bin/$GOOS_ARCH/whisper-cli"
+WHISPER_BIN="internal/capability/tools/embedded/bin/$GOOS_ARCH/whisper-cli"
 if [[ ! -f "$WHISPER_BIN" && "${SKIP_WHISPER:-0}" != "1" && -f third_party/whisper/build.sh ]]; then
   log "whisper-cli"
   bash third_party/whisper/build.sh linux amd64

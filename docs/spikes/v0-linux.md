@@ -10,12 +10,12 @@
 
 | 部分 | 内容 |
 | --- | --- |
-| `internal/procx` | `sys_linux.go`：新进程组加 `Pdeathsig=SIGKILL`；按 `/proc/<pid>/exe` 核对残留子进程；`xdg-open` 打开浏览器；`org.freedesktop.FileManager1.ShowItems`（`dbus-send`，其次 `gdbus`）定位文件，都不可用时用 `xdg-open` 打开所在目录。`sys_unix.go` 是从 `sys_darwin.go` 原样移出的公共部分（进程组信号、`Setsid` 分离启动、参数检查） |
-| `internal/asr` | `cores_linux.go`：从 `/sys/devices/system/cpu/cpu*/topology` 数不同的 `(physical_package_id, core_id)`，读不到时退回逻辑核数 |
-| `internal/tools` | 清单增加四个 `linux-amd64` 条目；新增纯 Go 的 xz / LZMA2 解码器 `xz.go`（标准库没有 xz，D-16 不允许新增依赖），`extract.go` 支持 `tar.xz` |
+| `internal/infra/procx` | `sys_linux.go`：新进程组加 `Pdeathsig=SIGKILL`；按 `/proc/<pid>/exe` 核对残留子进程；`xdg-open` 打开浏览器；`org.freedesktop.FileManager1.ShowItems`（`dbus-send`，其次 `gdbus`）定位文件，都不可用时用 `xdg-open` 打开所在目录。`sys_unix.go` 是从 `sys_darwin.go` 原样移出的公共部分（进程组信号、`Setsid` 分离启动、参数检查） |
+| `internal/capability/asr` | `cores_linux.go`：从 `/sys/devices/system/cpu/cpu*/topology` 数不同的 `(physical_package_id, core_id)`，读不到时退回逻辑核数 |
+| `internal/capability/tools` | 清单增加四个 `linux-amd64` 条目；新增纯 Go 的 xz / LZMA2 解码器 `xz.go`（标准库没有 xz，D-16 不允许新增依赖），`extract.go` 支持 `tar.xz` |
 | `third_party/whisper/build.sh` | `linux amd64`：静态链接、仅 CPU、x86-64-v3 指令集基线 |
 | 桌面 | `scripts/build-linux.sh`、Makefile 的 `desktop-linux` / `package-linux`；Wails 的 Linux 选项（窗口图标、程序名、GPU 策略）；没有图形会话时 `desktop` 给出说明而不是崩溃 |
-| `watchink doctor` | 新包 `internal/sysreq` 按文件查找 §16.3 的四个系统库，缺少时给出 apt 包名 |
+| `watchink doctor` | 新包 `internal/infra/sysreq` 按文件查找 §16.3 的四个系统库，缺少时给出 apt 包名 |
 | CI | `.github/workflows/linux.yml`，以及它调用的 `scripts/smoke-linux.sh`（S-03）和 `scripts/e2e.sh`（工具下载、全流程、S-08） |
 
 ## 在 macOS 上验证过的
@@ -25,13 +25,13 @@
 | Linux 交叉编译（无 cgo） | `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -tags nogui ./...` | 通过 |
 | Linux 静态检查（含测试文件） | `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go vet -tags nogui ./...` | 通过 |
 | Linux 专属测试能编译 | `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -c ./internal/{procx,asr,tools,sysreq}/` | 通过（只编译，未运行） |
-| 桌面代码对 Linux 的类型检查 | `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go vet -tags desktop,webkit2_41 ./internal/desktop/ ./cmd/watchink/` | 通过。不带 `production` 标签时 Wails 不引入 cgo 前端，所以这只说明我们自己的代码对得上 Wails 的 API |
-| macOS 没有被改坏 | `go build ./... && go test ./... && make lint`；`go test -race -count=2 ./internal/procx/`；`go build -tags desktop,production ./cmd/watchink` | 全部通过；桌面构建的 `doctor` 输出与之前相同 |
+| 桌面代码对 Linux 的类型检查 | `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go vet -tags desktop,webkit2_41 ./internal/entry/desktop/ ./cmd/watchink/` | 通过。不带 `production` 标签时 Wails 不引入 cgo 前端，所以这只说明我们自己的代码对得上 Wails 的 API |
+| macOS 没有被改坏 | `go build ./... && go test ./... && make lint`；`go test -race -count=2 ./internal/infra/procx/`；`go build -tags desktop,production ./cmd/watchink` | 全部通过；桌面构建的 `doctor` 输出与之前相同 |
 | xz 解码器对真实文件 | 解出清单里的 FFmpeg 压缩包（151 MB → 539 MB，22 个块，CRC64） | sha256 与 `xz -dc` 的输出一致；用时 10.5 s。经 `extractFiles` 取出的 `bin/ffprobe` 与 `tar -xJ` 取出的 sha256 一致 |
-| xz 解码器的边界情况 | `go test ./internal/tools/ -run 'XZ\|TarXz'` | 通过。样例由 XZ Utils 5.8.3 生成：多个 LZMA2 分块、4 KiB 字典加非默认 `lc/lp/pb`、未压缩分块、多块多流加流填充、空流、CRC32 / CRC64 / SHA-256 / 无校验。逐字节破坏和截断都得到错误而不是崩溃或错误输出 |
+| xz 解码器的边界情况 | `go test ./internal/capability/tools/ -run 'XZ\|TarXz'` | 通过。样例由 XZ Utils 5.8.3 生成：多个 LZMA2 分块、4 KiB 字典加非默认 `lc/lp/pb`、未压缩分块、多块多流加流填充、空流、CRC32 / CRC64 / SHA-256 / 无校验。逐字节破坏和截断都得到错误而不是崩溃或错误输出 |
 | 清单条目 | 下载每个文件、计算 sha256、列出压缩包内容 | 见下表 |
 | 物理核数解析 | `cores_linux.go` 的测试临时去掉构建标签后在 macOS 上运行 | 通过（超线程、双路、离线 CPU、缺少 package id） |
-| `doctor` 的系统库检查 | `go test ./internal/sysreq/ ./internal/cli/` | 通过（查找逻辑与平台无关，用临时目录测试） |
+| `doctor` 的系统库检查 | `go test ./internal/infra/sysreq/ ./internal/entry/cli/` | 通过（查找逻辑与平台无关，用临时目录测试） |
 | 冒烟脚本的流程 | 用 macOS 的 nogui 构建运行 `scripts/smoke-linux.sh` | 通过：`serve`、CLI、`engine stop`、CLI 拉起分离的后台 Engine、MCP 的 initialize / tools/list / tools/call |
 | 端到端脚本的流程 | 用 macOS 的 nogui 构建和已安装的 macOS 工具运行 `scripts/e2e.sh` | 通过：导入、转写、笔记、导出、取消、`kill -9` Engine 后子进程消失、重启续跑。这验证的是脚本本身和 macOS 的行为，不是 Linux 的行为 |
 | 脚本与工作流语法 | `bash -n` 四个脚本；用 Ruby 的 YAML 解析 `linux.yml` | 通过。没有 shellcheck 和 actionlint |
@@ -87,10 +87,10 @@
 
 ## 合并时要注意
 
-- `internal/procx/runner_darwin_test.go` 被拆成两个文件：公共用例移到 `runner_unix_test.go`，只有 guard 相关的四个用例和 `TestMain` 留在原文件。用例内容只改了一处：`TestKillIfMatches` 里不匹配的可执行文件从 `/bin/ls` 换成 `/bin/sh`。
+- `internal/infra/procx/runner_darwin_test.go` 被拆成两个文件：公共用例移到 `runner_unix_test.go`，只有 guard 相关的四个用例和 `TestMain` 留在原文件。用例内容只改了一处：`TestKillIfMatches` 里不匹配的可执行文件从 `/bin/ls` 换成 `/bin/sh`。
 - `Makefile` 和 `scripts/build-macos.sh` 开头、`sys_other.go`、`cores_other.go` 里的 `TODO(linux)` 注释没有动，以免和 Windows 分支冲突；它们现在已经过时。`README.md` 的状态行和 `docs/architecture.md` 同理。
 - `manifest.json` 里 ffmpeg / ffprobe 的 `license` 字段仍然只提到 macOS 的构建来源。
-- 新增的包 `internal/sysreq` 和 `build/linux`（只含嵌入的图标）不在 `docs/architecture.md` 的包列表里。
+- 新增的包 `internal/infra/sysreq` 和 `build/linux`（只含嵌入的图标）不在 `docs/architecture.md` 的包列表里。
 
 ## CI 首次运行结果（2026-10-10）
 

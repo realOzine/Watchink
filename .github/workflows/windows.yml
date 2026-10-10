@@ -4,7 +4,7 @@
 # This workflow is where it actually runs, so every step is a real check:
 #
 #   test    go vet + go test on Windows, including the Job Object tests of
-#           internal/procx and the desktop shell's unit tests
+#           internal/infra/procx and the desktop shell's unit tests
 #   build   whisper-cli (MSVC, static runtime) -> transcription smoke with
 #           non-ASCII paths -> release zip -> the console / GUI behaviour
 #           that can be checked automatically
@@ -57,7 +57,7 @@ jobs:
         run: go test ./...
       - name: go test (desktop shell)
         if: ${{ !cancelled() }}
-        run: CGO_ENABLED=0 go test -tags desktop ./internal/desktop/
+        run: CGO_ENABLED=0 go test -tags desktop ./internal/entry/desktop/
 
   build:
     runs-on: windows-latest
@@ -86,7 +86,7 @@ jobs:
         id: whisper-cache
         uses: actions/cache@v4
         with:
-          path: internal/tools/embedded/bin/windows-amd64
+          path: internal/capability/tools/embedded/bin/windows-amd64
           key: whisper-windows-amd64-${{ hashFiles('third_party/whisper/VERSION', 'third_party/whisper/build.sh', 'third_party/whisper/whisper-cli.manifest') }}
       - name: Build whisper-cli
         if: steps.whisper-cache.outputs.cache-hit != 'true'
@@ -95,7 +95,7 @@ jobs:
         run: |
           set -euxo pipefail
           . third_party/whisper/VERSION
-          bin="$PWD/internal/tools/embedded/bin/windows-amd64/whisper-cli.exe"
+          bin="$PWD/internal/capability/tools/embedded/bin/windows-amd64/whisper-cli.exe"
           [ "$(sha256sum "$bin" | awk '{print $1}')" = "$(awk '{print $1}' "$bin.sha256")" ]
           # The model, the audio and the output all sit under a directory
           # whose name the runner's system code page cannot represent: this
@@ -136,7 +136,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: whisper-cli-windows-amd64
-          path: internal/tools/embedded/bin/windows-amd64/whisper-cli.exe*
+          path: internal/capability/tools/embedded/bin/windows-amd64/whisper-cli.exe*
           if-no-files-found: error
 
       # --- console and GUI executables ------------------------------------------
@@ -310,7 +310,7 @@ jobs:
           Expand-Archive $zip.FullName -DestinationPath release
           Get-ChildItem release\Watchink
       - name: Build the fake LLM
-        run: go build -o fakellm.exe ./internal/llm/llmtest/cmd/fakellm
+        run: go build -o fakellm.exe ./internal/capability/llm/llmtest/cmd/fakellm
       - name: Process an audio file end to end
         shell: pwsh
         run: |

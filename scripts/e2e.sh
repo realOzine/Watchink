@@ -63,7 +63,7 @@ job_in_transcribe() { [[ "$(job_field "$1" 'j["status"] + "/" + str(j.get("stage
 job_status_is() { [[ "$(job_field "$1" 'j["status"]')" == "$2" ]]; }
 
 step "fake online model"
-(cd "$ROOT" && go build -o "$WORK/fakellm" ./internal/llm/llmtest/cmd/fakellm)
+(cd "$ROOT" && go build -o "$WORK/fakellm" ./internal/capability/llm/llmtest/cmd/fakellm)
 "$WORK/fakellm" -addr "$LLM_ADDR" >"$WORK/fakellm.log" 2>&1 &
 LLM_PID=$!
 wait_for 10 curl -s -o /dev/null "http://$LLM_ADDR/" || fail "the fake model did not start"

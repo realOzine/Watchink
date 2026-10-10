@@ -84,7 +84,7 @@ make desktop-windows   # dist/Watchink/{Watchink.exe, watchink.com}
 - 没有 API Key 时可以用伪造的在线模型跑通全流程：
 
   ```sh
-  go run ./internal/llm/llmtest/cmd/fakellm -addr 127.0.0.1:18080
+  go run ./internal/capability/llm/llmtest/cmd/fakellm -addr 127.0.0.1:18080
   watchink config set llm.base_url http://127.0.0.1:18080/v1
   watchink config set llm.model fake-model
   ```

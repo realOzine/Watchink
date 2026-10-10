@@ -5,7 +5,7 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := build
 
-WHISPER_BIN := internal/tools/embedded/bin/darwin-arm64/whisper-cli
+WHISPER_BIN := internal/capability/tools/embedded/bin/darwin-arm64/whisper-cli
 # Wails needs these on macOS when building without the wails CLI.
 MACOS_MIN := 13.0
 DESKTOP_ENV := CGO_ENABLED=1 \

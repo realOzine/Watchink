@@ -45,7 +45,7 @@ jobs:
       - name: Build whisper-cli
         run: |
           make whisper
-          bin=internal/tools/embedded/bin/darwin-arm64/whisper-cli
+          bin=internal/capability/tools/embedded/bin/darwin-arm64/whisper-cli
           file "$bin"
           test "$(shasum -a 256 "$bin" | cut -d' ' -f1)" = "$(cut -d' ' -f1 "$bin.sha256")"
           "$bin" --help >/dev/null
@@ -68,7 +68,7 @@ jobs:
         run: |
           CGO_ENABLED=1 CGO_CFLAGS="-mmacosx-version-min=13.0" \
           CGO_LDFLAGS="-framework UniformTypeIdentifiers -mmacosx-version-min=13.0" \
-            go test -tags desktop ./internal/desktop/...
+            go test -tags desktop ./internal/entry/desktop/...
 
       # The same checks for the other platforms' code paths that a macOS
       # machine can do: they must at least compile.
@@ -112,5 +112,5 @@ jobs:
           path: |
             dist/Watchink-*-macos-arm64.zip
             dist/SHA256SUMS
-            internal/tools/embedded/bin/darwin-arm64/whisper-cli.sha256
+            internal/capability/tools/embedded/bin/darwin-arm64/whisper-cli.sha256
             .devdata/tmp/frontend/test-results

@@ -55,7 +55,7 @@ jobs:
       - name: Build whisper-cli (static, CPU)
         run: |
           bash third_party/whisper/build.sh linux amd64
-          bin=internal/tools/embedded/bin/linux-amd64/whisper-cli
+          bin=internal/capability/tools/embedded/bin/linux-amd64/whisper-cli
           file "$bin" | tee whisper-file.txt
           grep -q 'statically linked' whisper-file.txt
           test "$(sha256sum "$bin" | cut -d' ' -f1)" = "$(cut -d' ' -f1 "$bin.sha256")"
@@ -72,7 +72,7 @@ jobs:
         run: go test ./...
 
       - name: go test (desktop shell)
-        run: CGO_ENABLED=1 go test -tags desktop,webkit2_41 ./internal/desktop/...
+        run: CGO_ENABLED=1 go test -tags desktop,webkit2_41 ./internal/entry/desktop/...
 
       - name: Build frontend
         working-directory: frontend
@@ -146,7 +146,7 @@ jobs:
           path: |
             dist/watchink-*-linux-amd64
             dist/SHA256SUMS
-            internal/tools/embedded/bin/linux-amd64/whisper-cli.sha256
+            internal/capability/tools/embedded/bin/linux-amd64/whisper-cli.sha256
             window.log
 
   e2e:

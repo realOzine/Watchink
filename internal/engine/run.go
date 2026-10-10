@@ -18,8 +18,8 @@ import (
 	"syscall"
 	"time"
 
-	"watchink/internal/api"
 	"watchink/internal/app"
+	"watchink/internal/transport/api"
 )
 
 // DefaultIdleExit is the background-mode idle timeout.

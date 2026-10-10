@@ -23,7 +23,7 @@
 ```text
 Watchink/
 ├─ cmd/watchink/        程序入口：唯一的可执行文件，按子命令扮演不同角色
-├─ internal/            全部 Go 代码，按职责分成 20 个包（见下）
+├─ internal/            全部 Go 代码，按层分组（见下）
 ├─ frontend/            界面：React + TypeScript 单页应用，桌面和浏览器共用
 ├─ build/               各平台打包用的资源：图标、Info.plist、Windows 清单等
 ├─ scripts/             构建、打包和端到端检查脚本
@@ -44,9 +44,25 @@ desktop_gui.go     带 desktop 构建标签时编译：提供打开窗口的函�
 desktop_nogui.go   不带标签时编译：没有窗口，同名变量为空
 ```
 
-### `internal/`：Go 代码
+### `internal/`：Go 代码，按层分组
 
-按“从外到内”的顺序排列：越靠前越接近用户，越靠后越基础。
+`internal/` 下面按“离用户的远近”分成几层，上层依赖下层，不能反过来：
+
+```text
+internal/
+├─ app/          契约：接口和数据结构
+├─ entry/        入口：cli、mcpserver、desktop
+├─ transport/    传输：client、api
+├─ engine/       Engine 进程的生命周期
+├─ core/         核心：service、jobs、pipeline、events
+├─ capability/   能力库：notes、llm、media、asr、tools
+├─ infra/        底层：store、procx、config、sysreq
+└─ bench/ version/ webui/   基准测试、版本号、内嵌的前端
+```
+
+#### `internal/app/`：契约层
+
+所有入口和 Engine 之间的共同语言。不依赖任何其他包，所有包都可以依赖它。
 
 ```text
 app/                 契约层：所有入口和 Engine 之间的共同语言，不含逻辑
@@ -55,7 +71,13 @@ app/                 契约层：所有入口和 Engine 之间的共同语言，
 ├─ errors.go           错误码表：是否可重试、HTTP 状态、CLI 退出码
 ├─ settings.go         配置结构（config.toml 和设置接口共用）及默认值
 └─ ids.go              各类 ID 的生成（vid_、job_、tr_、seg_、note_…）
+```
 
+#### `internal/entry/`：入口层
+
+用户和 Agent 接触到的三种入口。它们只认识 `app` 里的接口，不碰数据库和调度器。
+
+```text
 cli/                 命令行：cobra 命令树，只通过 app.Service 干活
 ├─ cli.go              根命令、全局参数、统一的错误输出和退出码
 ├─ cmd_jobs.go         import、jobs list / get / cancel / retry
@@ -81,7 +103,13 @@ desktop/             桌面外壳（Wails v2），仅在 desktop 构建标签下
 ├─ origin_*.go         页面在各平台 WebView 里的来源（CORS 要放行它）
 ├─ platform_*.go       窗口图标与启动前检查（Linux 检查系统库）
 └─ webview_*.go        查询系统 WebView 的版本（Windows 的 WebView2）
+```
 
+#### `internal/transport/`：传输层
+
+入口和 Engine 之间的那条 HTTP 通道的两端。
+
+```text
 client/              Engine 的 HTTP 客户端，实现 app.Remote
 ├─ connect.go          发现 Engine，连不上就拉起一个，版本不同就替换
 ├─ client.go           每个用例对应一次 HTTP 调用，错误还原成 app.Error
@@ -94,13 +122,25 @@ api/                 Engine 的 HTTP 服务端：只做传输，不含业务逻�
 ├─ events.go           事件流（SSE 格式）、心跳、断线回放
 ├─ spa.go              把内嵌的前端发给浏览器
 └─ apitest/fake.go     测试用的假 Local
+```
 
+#### `internal/engine/`：Engine 进程
+
+Engine 进程自身的生命周期：启动、被发现、停止。不含业务。
+
+```text
 engine/              Engine 进程的生命周期
 ├─ run.go              启动顺序：拿锁 → 建日志 → 建 service → 监听 → 等停止
 ├─ discovery.go        engine.lock 和 engine.json：谁是 Engine、怎么找到它
 ├─ logger.go           日志：JSON 行、按大小轮转、密钥脱敏
 └─ replace_*.go        原子替换文件（Windows 上被读取时要重试）
+```
 
+#### `internal/core/`：核心
+
+Engine 里真正的业务：用例、调度、处理阶段、事件。
+
+```text
 service/             用例层：app.Local 的实现，也是 Engine 内部的装配点
 ├─ service.go          Open：创建 store、调度器、工具管理器；重启恢复
 ├─ imports.go          Import：校验 → 算去重键 → 事务内决定回答还是建任务；上传
@@ -125,6 +165,14 @@ pipeline/            任务有哪些阶段，以及每个阶段怎么做
 ├─ stage_transcribe.go transcribe：语言检测、整段转写、后处理、入库
 └─ stage_note.go       note_map、note_reduce、note_render
 
+events/bus.go        内存事件总线，带回放缓冲（支撑事件流）
+```
+
+#### `internal/capability/`：能力库
+
+一件事一个包，彼此独立：生成笔记、调模型、处理媒体、转写、准备工具。
+
+```text
 notes/               笔记生成：纯逻辑，只通过 llm 接口访问模型
 ├─ chunk.go            把字幕切成块；token 估算；时间格式
 ├─ map.go              每块提要点，校验引用，必要时修复或拆分
@@ -170,7 +218,13 @@ tools/               外部工具和模型的准备
 ├─ update.go           更新 yt-dlp 到上游最新版，可回退
 ├─ embedded.go         内嵌的 whisper-cli（embedded/bin/<平台>/，构建时放入）
 └─ sys_*.go            各平台的重命名、链接和磁盘满处理
+```
 
+#### `internal/infra/`：底层
+
+和操作系统、磁盘打交道的部分。只有 `store` 接触数据库，只有 `procx` 创建子进程。
+
+```text
 store/               数据存储：唯一接触 SQLite 的包
 ├─ store.go            打开数据库、迁移、读写事务
 ├─ migrations/         建表 SQL
@@ -199,14 +253,22 @@ config/              配置与目录
 ├─ secrets.go          secrets.toml（API Key）；按优先级解析凭据
 └─ importpath.go       本地导入路径是否在允许的目录内
 
-events/bus.go        内存事件总线，带回放缓冲（支撑事件流）
 sysreq/              桌面窗口需要的系统库检查（doctor 用；目前只有 Linux 有内容）
+```
+
+#### `internal/` 下的其余三个
+
+不属于任何一层的零散包。
+
+```text
 bench/               性能基准与压测（见 benchmark.md）
 ├─ seed.go             生成测试用的资料库
 ├─ harness.go          在临时目录上启动真实的 service + HTTP
 ├─ bench_test.go       go test -bench 的基准
 └─ cmd/loadtest/       并发 HTTP 压测命令
+
 version/version.go   版本号和 build_id（构建时写入）
+
 webui/webui.go       内嵌前端的构建产物（dist/ 由前端构建生成，不入库）
 ```
 
@@ -308,7 +370,7 @@ spikes/           各平台的验证记录
 - **每个阶段先算输入指纹**，命中已有产物就跳过。重试、崩溃后续跑、重复导入、重新生成笔记，全靠这一套机制。
 - **模型不产生时间戳**：模型只引用片段编号，时间和链接由程序计算并校验。
 
-代码量（不含测试）：Go 约 2.5 万行，分 20 个包；前端是一个 React 单页应用。
+代码量（不含测试）：Go 约 2.5 万行，分成 5 层共 20 多个包；前端是一个 React 单页应用。
 
 ## 2. 进程模型
 
@@ -348,25 +410,31 @@ spikes/           各平台的验证记录
 
 ## 3. 分层与依赖规则
 
+目录就是分层。`internal/` 下的每个子目录是一层，箭头表示“依赖”：
+
 ```text
-cmd/watchink ── 装配
+cmd/watchink ── 装配：把各层接起来
    │
-   ├─ cli · mcpserver · desktop      入口层：只认识 app 里的接口和 DTO
-   │        │
-   │        ▼
-   ├─ client ──HTTP──▶ api           传输层：client 实现 app.Remote，api 服务 app.Local
-   │                    │
-   ├─ engine            ▼            进程生命周期：锁、发现文件、监听、日志、空闲退出
-   │                 service         用例层：导入去重、读取、导出、设置、工具
-   │                    │
-   │              jobs · pipeline    调度与阶段
-   │                    │
-   │     media · asr · llm · notes · tools · config · events    能力库（彼此独立）
-   │                    │
-   └──────────── store · procx       唯二的“特权”包
-                        │
-                       app           契约（不依赖任何内部包）
+   ▼
+entry/        cli · mcpserver · desktop      入口：只认识 app 里的接口和数据结构
+   │
+   ▼
+transport/    client ──HTTP──▶ api           传输：client 实现 app.Remote，api 服务 app.Local
+   │                            │
+   │          engine/           │            Engine 进程：锁、发现文件、监听、日志、空闲退出
+   │                            ▼
+core/         service · jobs · pipeline · events   核心：用例、调度、处理阶段、事件
+   │
+   ▼
+capability/   notes · llm · media · asr · tools    能力库：彼此独立，一件事一个包
+   │
+   ▼
+infra/        store · procx · config · sysreq      底层：数据库、子进程、配置文件、系统库检查
+
+app/          契约：不依赖任何内部包，以上每一层都可以依赖它
 ```
+
+`engine` 夹在传输层中间：它启动 `api`，而 `client` 要读它写下的发现文件，所以它单独一层。
 
 规则靠 import 关系自然成立，目前没有工具强制检查，改代码时要守住：
 
@@ -621,12 +689,12 @@ go run ./internal/bench/cmd/loadtest                    # 并发 HTTP 压测
 
 1. `internal/app/service.go`、`dto.go`——系统能做什么。
 2. `cmd/watchink/main.go`——各部分怎么接起来。
-3. `internal/service/service.go` 的 `Open`——Engine 内部怎么装配。
-4. `internal/service/imports.go` 的 `Import`——一个请求怎么变成任务。
-5. `internal/pipeline/pipeline.go`，然后任选一个 `stage_*.go`（建议 `stage_transcribe.go`）——阶段的统一写法。
-6. `internal/jobs/jobs.go` 的类型定义，再看 `scheduler.go` 的 `schedule` → `advance` → `startStage` → `stageDone`。
-7. `internal/notes/map.go`、`reduce.go`、`render.go`——笔记和引用是怎么来的。
-8. `internal/engine/run.go` 的 `Run` 与 `internal/client/connect.go` 的 `Connect`——进程怎么互相找到。
+3. `internal/core/service/service.go` 的 `Open`——Engine 内部怎么装配。
+4. `internal/core/service/imports.go` 的 `Import`——一个请求怎么变成任务。
+5. `internal/core/pipeline/pipeline.go`，然后任选一个 `stage_*.go`（建议 `stage_transcribe.go`）——阶段的统一写法。
+6. `internal/core/jobs/jobs.go` 的类型定义，再看 `scheduler.go` 的 `schedule` → `advance` → `startStage` → `stageDone`。
+7. `internal/capability/notes/map.go`、`reduce.go`、`render.go`——笔记和引用是怎么来的。
+8. `internal/engine/run.go` 的 `Run` 与 `internal/transport/client/connect.go` 的 `Connect`——进程怎么互相找到。
 9. 需要时再看 `api/routes.go`、`cli/`、`mcpserver/`、`desktop/`：它们都很薄。
 
 ## 17. 常见改动去哪里做
@@ -637,7 +705,7 @@ go run ./internal/bench/cmd/loadtest                    # 并发 HTTP 压测
 | 加一个处理阶段 | `pipeline` 写阶段函数并加进 `processVideoStages`；需要新产物类型时动 `store` |
 | 改某个阶段的逻辑 | 改完把 `pipeline.go` 里对应的阶段版本号加 1 |
 | 改提示词或笔记结构 | `notes/prompt.go` 等，并递增 `PromptVersion` 或 `RendererVersion` |
-| 升级外部工具 | `internal/tools/manifest.json`（版本、URL、sha256） |
+| 升级外部工具 | `internal/capability/tools/manifest.json`（版本、URL、sha256） |
 | 加 CLI 命令 / MCP 工具 | `cli` / `mcpserver`，只用 `app.Service` |
 | 改表结构 | 在 `store/migrations` 新增迁移文件，不改已有的 |
 | 加配置项 | `app/settings.go` → `config`（默认值、校验、patch）→ 设置页 |

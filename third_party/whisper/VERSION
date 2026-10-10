@@ -1,5 +1,5 @@
 # Pinned whisper.cpp release (github.com/ggml-org/whisper.cpp). Sourced by
-# build.sh and checked against internal/tools/manifest.json by a unit test.
+# build.sh and checked against internal/capability/tools/manifest.json by a unit test.
 # Bump all three values together.
 WHISPER_TAG=v1.9.5
 WHISPER_COMMIT=d1be6fde11ac6e0407606b4e42fe72d34add8037

@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"watchink/internal/bench"
-	"watchink/internal/store"
+	"watchink/internal/infra/store"
 )
 
 func main() {

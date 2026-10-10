@@ -6,11 +6,11 @@ import (
 	"context"
 	"os"
 
-	"watchink/internal/cli"
-	"watchink/internal/client"
-	"watchink/internal/desktop"
-	"watchink/internal/procx"
-	"watchink/internal/sysreq"
+	"watchink/internal/entry/cli"
+	"watchink/internal/entry/desktop"
+	"watchink/internal/infra/procx"
+	"watchink/internal/infra/sysreq"
+	"watchink/internal/transport/client"
 	"watchink/internal/version"
 	"watchink/internal/webui"
 )

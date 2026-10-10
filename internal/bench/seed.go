@@ -17,7 +17,7 @@ import (
 	"strings"
 
 	"watchink/internal/app"
-	"watchink/internal/store"
+	"watchink/internal/infra/store"
 )
 
 // Shape describes a synthetic library.

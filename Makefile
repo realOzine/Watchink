@@ -57,10 +57,13 @@ lint-linux:
 	go vet ./...
 	CGO_ENABLED=1 go vet -tags desktop,webkit2_41 ./...
 
-## icon: regenerate build/appicon.png and build/darwin/Watchink.icns
+## icon: regenerate every icon file from build/appicon.svg (needs the
+## frontend's Playwright browser: cd frontend && corepack pnpm e2e:install)
 icon:
-	go run scripts/genicon.go build/appicon.png
+	node scripts/render-icon.mjs build/appicon.png
 	bash scripts/make-icns.sh
+	sips -Z 256 build/appicon.png --out build/linux/watchink.png >/dev/null
+	go run scripts/make-ico.go build/appicon.png build/windows/Watchink.ico
 
 ## test: unit tests of the default (non-GUI) build
 test:

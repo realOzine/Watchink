@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds build/darwin/Watchink.icns from build/appicon.png (1024x1024)
 # with the macOS tools sips and iconutil. Regenerate the PNG first with
-#   go run scripts/genicon.go build/appicon.png
+#   node scripts/render-icon.mjs build/appicon.png   (from build/appicon.svg)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

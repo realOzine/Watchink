@@ -6,7 +6,7 @@
 //
 //	go run scripts/make-ico.go [build/appicon.png [build/windows/Watchink.ico]]
 //
-// Regenerate the PNG first with `go run scripts/genicon.go build/appicon.png`.
+// Regenerate the PNG first with `node scripts/render-icon.mjs` (see `make icon`).
 // The .ico is committed; scripts/build-windows.sh compiles it into the
 // executables as icon resource 3, the id Wails loads the window icon from.
 package main

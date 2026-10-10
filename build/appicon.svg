@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Watchink app icon. Flat shapes only; the hair clip is a play button.
+       Render with: node scripts/render-icon.mjs (then `make icon`). -->
+  <defs>
+    <clipPath id="tile"><rect x="100" y="100" width="824" height="824" rx="186"/></clipPath>
+  </defs>
+  <g clip-path="url(#tile)">
+    <rect x="100" y="100" width="824" height="824" fill="#CDEBE5"/>
+
+    <!-- back hair: a bob -->
+    <path fill="#3B2F4A" d="M226 540 C226 318 366 214 512 214 C658 214 798 318 798 540 L798 704 C798 762 760 792 708 792 L316 792 C264 792 226 762 226 704 Z"/>
+    <!-- ahoge -->
+    <path fill="#3B2F4A" d="M500 232 C478 160 540 122 598 156 C562 162 542 190 548 236 Z"/>
+
+    <!-- neck and shoulders -->
+    <rect x="462" y="720" width="100" height="120" fill="#F7D3BF"/>
+    <path fill="#2F6F6A" d="M272 1024 C272 880 380 812 512 812 C644 812 752 880 752 1024 Z"/>
+    <path fill="#FFFFFF" d="M452 814 L512 878 L572 814 C552 808 532 806 512 806 C492 806 472 808 452 814 Z"/>
+
+    <!-- face -->
+    <ellipse cx="512" cy="566" rx="212" ry="204" fill="#FFE6D5"/>
+
+    <!-- bangs -->
+    <path fill="#3B2F4A" d="M298 612 C270 384 390 262 512 262 C634 262 754 384 726 612 C720 548 700 498 664 462 L648 520 C612 486 572 466 528 458 L514 516 C478 480 434 462 388 458 L372 514 C336 528 308 562 298 612 Z"/>
+
+    <!-- play-button hair clip -->
+    <g transform="rotate(-14 352 420)">
+      <rect x="306" y="378" width="96" height="84" rx="24" fill="#FFC94A"/>
+      <path fill="#FFFFFF" d="M340 398 L340 442 L378 420 Z"/>
+    </g>
+
+    <!-- eyes -->
+    <ellipse cx="428" cy="604" rx="33" ry="46" fill="#2E2A3B"/>
+    <ellipse cx="596" cy="604" rx="33" ry="46" fill="#2E2A3B"/>
+    <circle cx="440" cy="585" r="13" fill="#FFFFFF"/>
+    <circle cx="608" cy="585" r="13" fill="#FFFFFF"/>
+
+    <!-- blush and mouth -->
+    <ellipse cx="372" cy="662" rx="40" ry="21" fill="#FF9AA2" opacity="0.55"/>
+    <ellipse cx="652" cy="662" rx="40" ry="21" fill="#FF9AA2" opacity="0.55"/>
+    <path d="M490 676 Q512 700 534 676" fill="none" stroke="#B5524A" stroke-width="10" stroke-linecap="round"/>
+  </g>
+</svg>

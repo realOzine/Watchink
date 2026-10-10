@@ -70,6 +70,9 @@ wait_for 10 curl -s -o /dev/null "http://$LLM_ADDR/" || fail "the fake model did
 "$BIN" config set llm.base_url "http://$LLM_ADDR/v1" >/dev/null
 "$BIN" config set llm.model fake-model >/dev/null
 printf 'sk-fake-e2e-key-000' | "$BIN" config set-secret llm_api_key >/dev/null
+# The samples live in the run's temp directory, which on Linux (/tmp) is
+# outside the default import root (the home directory).
+"$BIN" config set security.import_roots "~,$(cd "$WORK" && pwd -P)" >/dev/null
 
 step "tools prepare (downloads, verifies, extracts, smoke-tests)"
 "$BIN" tools prepare --wait

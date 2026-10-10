@@ -105,7 +105,9 @@ FF=("$DATA/tools/bin/ffmpeg" -hide_banner -loglevel error -y)
 "${FF[@]}" -stream_loop 30 -i "$SPEECH" -t 600 -ac 1 -ar 16000 -c:a pcm_s16le "$WORK/long.wav"
 
 step "import -> transcript -> note -> export"
-RES="$("$BIN" import "$WORK/short.mp4" --lang en --wait 1200 --json)"
+# With --json a failure is reported on stdout, which is captured here; print
+# it, or the log only shows an exit code.
+RES="$("$BIN" import "$WORK/short.mp4" --lang en --wait 1200 --json)" || fail "import failed: $RES"
 json '"job %s: %s" % (j["job"]["job_id"], [(s["stage"], s["status"]) for s in j["job"]["stages"]])' <<<"$RES"
 [[ "$(json 'j["job"]["status"]' <<<"$RES")" == "succeeded" ]] || fail "the job did not succeed: $RES"
 VIDEO="$(json 'j["job"]["video_id"]' <<<"$RES")"

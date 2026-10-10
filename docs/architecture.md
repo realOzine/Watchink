@@ -14,8 +14,270 @@
 
 表结构、错误码表、接口清单等细节以 `v0.md` 为准，本文只说明它们在代码里的位置和相互关系。
 
+## 文件结构
+
+先看这一节，知道每个目录、每个文件是干什么的，再往下读原理。每个 Go 包里的 `*_test.go` 是该包的测试，下面不逐一列出。
+
+### 顶层
+
+```text
+Watchink/
+├─ cmd/watchink/        程序入口：唯一的可执行文件，按子命令扮演不同角色
+├─ internal/            全部 Go 代码，按职责分成 20 个包（见下）
+├─ frontend/            界面：React + TypeScript 单页应用，桌面和浏览器共用
+├─ build/               各平台打包用的资源：图标、Info.plist、Windows 清单等
+├─ scripts/             构建、打包和端到端检查脚本
+├─ third_party/whisper/ whisper.cpp 的版本锁定和构建脚本（语音转写引擎）
+├─ docs/                文档：路线图、设计规格、架构（本文）、基准、构建、验证记录
+├─ .github/workflows/   三个平台的 CI
+├─ Makefile             常用构建命令的入口
+├─ go.mod / go.sum      Go 依赖
+├─ README.md / README.en.md / LICENSE
+└─ .gitignore / .gitattributes
+```
+
+### `cmd/watchink/`：入口
+
+```text
+main.go            把各包装配起来：解析子命令，决定当桌面、CLI、MCP 还是 Engine
+desktop_gui.go     带 desktop 构建标签时编译：提供打开窗口的函数
+desktop_nogui.go   不带标签时编译：没有窗口，同名变量为空
+```
+
+### `internal/`：Go 代码
+
+按“从外到内”的顺序排列：越靠前越接近用户，越靠后越基础。
+
+```text
+app/                 契约层：所有入口和 Engine 之间的共同语言，不含逻辑
+├─ service.go          Service / Local / Remote 三个接口：系统能做的全部事情
+├─ dto.go              请求、响应的结构体，状态和阶段名常量
+├─ errors.go           错误码表：是否可重试、HTTP 状态、CLI 退出码
+├─ settings.go         配置结构（config.toml 和设置接口共用）及默认值
+└─ ids.go              各类 ID 的生成（vid_、job_、tr_、seg_、note_…）
+
+cli/                 命令行：cobra 命令树，只通过 app.Service 干活
+├─ cli.go              根命令、全局参数、统一的错误输出和退出码
+├─ cmd_jobs.go         import、jobs list / get / cancel / retry
+├─ cmd_videos.go       videos、note、transcript、export
+├─ cmd_config.go       config show / get / set / set-secret / set-data-dir
+├─ cmd_setup.go        setup：首次配置在线模型并准备工具
+├─ cmd_tools.go        tools status / prepare / update / import，llm test
+├─ cmd_run.go          desktop、serve、web、mcp、engine status / stop
+├─ cmd_doctor.go       doctor：诊断数据目录、Engine、工具、模型、桌面依赖
+├─ output.go           --json 与人类可读两种输出、表格排版
+├─ wait.go             --wait / --follow：长轮询任务直到结束
+└─ clitest/fake.go     测试用的假 Service
+
+mcpserver/           MCP 服务器：供 Agent 调用，转发到 Engine
+├─ server.go           stdio 服务器；首次调用才连接 Engine，断了重连一次
+├─ tools.go            8 个工具的定义和实现
+└─ schema.go           工具输入输出的 JSON Schema
+
+desktop/             桌面外壳（Wails v2），仅在 desktop 构建标签下编译
+├─ desktop.go          创建窗口、加载内嵌前端
+├─ app.go              6 个原生绑定：拿 Engine 地址、选文件、保存导出等
+├─ winshell.go         Windows 专用选项、WebView2 提示、命令行程序的路径
+├─ origin_*.go         页面在各平台 WebView 里的来源（CORS 要放行它）
+├─ platform_*.go       窗口图标与启动前检查（Linux 检查系统库）
+└─ webview_*.go        查询系统 WebView 的版本（Windows 的 WebView2）
+
+client/              Engine 的 HTTP 客户端，实现 app.Remote
+├─ connect.go          发现 Engine，连不上就拉起一个，版本不同就替换
+├─ client.go           每个用例对应一次 HTTP 调用，错误还原成 app.Error
+└─ stream.go           读取事件流并自动重连
+
+api/                 Engine 的 HTTP 服务端：只做传输，不含业务逻辑
+├─ handler.go          入口：Host 校验 → CORS → 路由；请求日志和空闲统计
+├─ security.go         Host 白名单、CORS、令牌、浏览器同源规则
+├─ routes.go           全部 /api/v1 路由：解析参数 → 调 service → 写 JSON
+├─ events.go           事件流（SSE 格式）、心跳、断线回放
+├─ spa.go              把内嵌的前端发给浏览器
+└─ apitest/fake.go     测试用的假 Local
+
+engine/              Engine 进程的生命周期
+├─ run.go              启动顺序：拿锁 → 建日志 → 建 service → 监听 → 等停止
+├─ discovery.go        engine.lock 和 engine.json：谁是 Engine、怎么找到它
+├─ logger.go           日志：JSON 行、按大小轮转、密钥脱敏
+└─ replace_*.go        原子替换文件（Windows 上被读取时要重试）
+
+service/             用例层：app.Local 的实现，也是 Engine 内部的装配点
+├─ service.go          Open：创建 store、调度器、工具管理器；重启恢复
+├─ imports.go          Import：校验 → 算去重键 → 事务内决定回答还是建任务；上传
+├─ jobs_videos.go      任务和视频的查询、取消、重试
+├─ read.go             读笔记、读字幕、播放地址、导出
+├─ settings.go         读写配置和密钥、测试在线模型、工具状态
+└─ cache.go            不可变数据（引用表、字幕）的小型 LRU 缓存
+
+jobs/                通用调度器：不认识“视频”，只认识任务、阶段、资源
+├─ jobs.go             类型：StageDef、JobParams；建任务；组装任务 DTO 和总进度
+├─ scheduler.go        调度循环：挑选可运行的阶段、占用资源、落库、发事件
+├─ ops.go              StageContext（阶段函数拿到的句柄）；取消、重试、等待、停止
+└─ fingerprint.go      输入指纹：规范化 JSON 的 sha256
+
+pipeline/            任务有哪些阶段，以及每个阶段怎么做
+├─ pipeline.go         阶段图（依赖、资源、权重）和阶段版本号
+├─ artifacts.go        所有阶段共用的缓存与产物辅助函数
+├─ settings.go         把配置翻译成各能力包需要的参数
+├─ stage_tools.go      ensure_tools / prepare：检查并安装工具和模型
+├─ stage_acquire.go    acquire：复制本地文件、接收上传、下载链接视频
+├─ stage_media.go      probe、extract_audio、playback
+├─ stage_transcribe.go transcribe：语言检测、整段转写、后处理、入库
+└─ stage_note.go       note_map、note_reduce、note_render
+
+notes/               笔记生成：纯逻辑，只通过 llm 接口访问模型
+├─ chunk.go            把字幕切成块；token 估算；时间格式
+├─ map.go              每块提要点，校验引用，必要时修复或拆分
+├─ reduce.go           把要点组织成章节、概览、结论；要点多时分两级
+├─ render.go           渲染 Markdown 和结构化笔记；Verify 复核每个引用
+├─ export.go           导出：改写引用链接；SRT / VTT / TXT
+├─ prompt.go           提示词模板的加载和调用
+└─ prompts/*.tmpl      提示词模板
+
+llm/                 在线模型客户端（OpenAI 兼容协议）
+├─ client.go           请求、结构化输出三级降级、重试
+├─ errors.go           把 HTTP 错误归类成错误码
+├─ tuning.go           请求参数自愈：被拒绝或截断时调整后重发
+├─ schema.go           由 Go 结构体生成 JSON Schema
+├─ clean.go            解析前去掉代码围栏和 <think> 片段
+├─ probe.go            测试连接
+├─ models.go           列出服务端的模型
+└─ llmtest/            可脚本化的假模型服务（测试和没有 API Key 时用）
+
+media/               媒体工具的调用与输出解析
+├─ probe.go            ffprobe：时长、流信息、时间偏移
+├─ ffmpeg.go           提取音频；判断能否直接播放，否则重封装或转码
+├─ ytdlp.go            yt-dlp 下载、进度解析、错误分类
+├─ url.go              链接规范化成去重键；主机名白名单；短链解析
+├─ hash.go             抽样哈希去重；边复制边算 sha256；磁盘满的识别
+└─ diskfull_*.go       各平台的“磁盘已满”错误码
+
+asr/                 语音转写
+├─ asr.go              接口和请求结构
+├─ whispercpp.go       调用 whisper-cli 并解析它的进度和 JSON 输出
+├─ postprocess.go      去空片段、折叠重复幻觉、保证时间单调
+└─ cores_*.go          各平台的物理核心数（决定默认线程数）
+
+tools/               外部工具和模型的准备
+├─ manifest.json       清单：每个工具和模型的版本、下载地址、sha256
+├─ manifest.go         清单的结构和校验
+├─ manager.go          状态查询、Ensure（按需安装）、路径解析
+├─ install.go          安装流程：取得 → 校验 → 解压 → 冒烟测试 → 原子移动 → 登记
+├─ download.go         下载：续传、镜像、代理、校验
+├─ extract.go          解压 zip / tar.gz / tar.xz
+├─ xz.go               纯 Go 的 xz 解码器（Linux 的 ffmpeg 是 tar.xz）
+├─ installed.go        installed.json：已安装的版本记录
+├─ update.go           更新 yt-dlp 到上游最新版，可回退
+├─ embedded.go         内嵌的 whisper-cli（embedded/bin/<平台>/，构建时放入）
+└─ sys_*.go            各平台的重命名、链接和磁盘满处理
+
+store/               数据存储：唯一接触 SQLite 的包
+├─ store.go            打开数据库、迁移、读写事务
+├─ migrations/         建表 SQL
+├─ videos.go           videos 表
+├─ jobs.go             jobs、job_stages、job_events 表；重启恢复
+├─ artifacts.go        artifacts 表：产物登记，指纹复用的另一半
+├─ transcripts.go      transcripts、segments 表
+├─ notes.go            notes、citations 表
+├─ misc.go             uploads、exports、child_processes 表
+├─ files.go            数据目录内的文件：原子写入、校验、清理孤立文件
+└─ diskfull_*.go       各平台的“磁盘已满”错误码
+
+procx/               子进程：唯一创建子进程的包
+├─ runner.go           启动、转发输出、取消、清理整个进程组
+├─ redact.go           错误信息中的密钥脱敏
+├─ sys_unix.go         macOS 和 Linux 共用：进程组信号、分离启动
+├─ sys_darwin.go       macOS：_guard 守护进程、打开浏览器和访达
+├─ sys_linux.go        Linux：Pdeathsig、xdg-open
+├─ sys_windows.go      Windows：Job Object、分离启动、资源管理器
+└─ sys_other.go / group_other.go  其他平台的占位
+
+config/              配置与目录
+├─ paths.go            数据目录和配置目录在各平台的位置
+├─ settings.go         读写 config.toml；校验；时长和大小的解析
+├─ patch.go            把 JSON 补丁应用到配置
+├─ secrets.go          secrets.toml（API Key）；按优先级解析凭据
+└─ importpath.go       本地导入路径是否在允许的目录内
+
+events/bus.go        内存事件总线，带回放缓冲（支撑事件流）
+sysreq/              桌面窗口需要的系统库检查（doctor 用；目前只有 Linux 有内容）
+bench/               性能基准与压测（见 benchmark.md）
+├─ seed.go             生成测试用的资料库
+├─ harness.go          在临时目录上启动真实的 service + HTTP
+├─ bench_test.go       go test -bench 的基准
+└─ cmd/loadtest/       并发 HTTP 压测命令
+version/version.go   版本号和 build_id（构建时写入）
+webui/webui.go       内嵌前端的构建产物（dist/ 由前端构建生成，不入库）
+```
+
+### `frontend/`：界面
+
+```text
+index.html / vite.config.ts / tsconfig.json / package.json   构建配置
+tygo.yaml                由 Go 的 DTO 生成 TypeScript 类型的配置
+playwright.config.ts     浏览器端到端测试的配置
+mock/server.mjs          模拟 Engine：开发和端到端测试时不需要真的 Engine
+e2e/smoke.spec.ts        浏览器端到端测试
+src/
+├─ main.tsx              入口：路由、数据层、事件流的初始化
+├─ api/                  和 Engine 通信
+│   ├─ client.ts           HTTP 请求
+│   ├─ sse.ts / events.ts  读取事件流，并据此更新界面上的数据
+│   ├─ hooks.ts / keys.ts  各页面使用的数据查询
+│   ├─ errors.ts           错误对象
+│   └─ types.ts            由 Go 生成的类型（不要手改）
+├─ platform/             桌面与浏览器的全部差异：鉴权、选文件、保存、打开链接
+├─ pages/                页面：资料库、视频详情、任务、设置、首次配置
+├─ components/           组件：播放器、笔记、字幕面板、导入对话框、导出菜单等
+├─ lib/                  小工具：时间格式、笔记链接解析、播放器控制、提示消息
+├─ i18n/zh.ts            全部界面文案
+└─ styles/global.css     全局样式和颜色变量
+```
+
+### `build/`、`scripts/`、`third_party/`、`.github/`
+
+```text
+build/
+├─ appicon.png             应用图标（1024 像素，README 也用它）
+├─ darwin/                 macOS：Info.plist 模板、Watchink.icns
+├─ linux/                  Linux：窗口图标、.desktop 文件、把图标嵌进程序的 assets.go
+└─ windows/                Windows：图标、清单、版本信息、zip 里的说明
+
+scripts/
+├─ build-macos.sh          构建并打包 Watchink.app
+├─ build-linux.sh          构建桌面版和无界面版
+├─ build-windows.sh        构建窗口程序和命令行程序，打成 zip
+├─ mkzip.go                生成发行 zip（Windows 构建用）
+├─ e2e.sh                  端到端检查：真实工具 + 假模型，走完导入到导出
+├─ smoke-linux.sh          无图形环境下的冒烟检查（CI 用）
+└─ mcpsmoke.go             通过 stdio 对 MCP 服务器做一次握手和调用（CI 用）
+
+third_party/whisper/
+├─ VERSION                 锁定的 whisper.cpp 版本和源码校验和
+├─ build.sh                三个平台的 whisper-cli 构建
+├─ whisper-cli.manifest    Windows：让 whisper-cli 以 UTF-8 处理路径
+└─ NOTES.md                whisper-cli 的参数、输出格式和实测记录
+
+.github/workflows/
+├─ macos.yml               构建、测试、浏览器测试、打包
+├─ linux.yml               构建、测试、打包、无图形冒烟、端到端
+└─ windows.yml             测试、构建、命令行行为检查、端到端
+```
+
+### `docs/`
+
+```text
+roadmap.md        做什么、版本边界、如何验收
+v0.md             v0 的设计规格：决策、接口契约、取舍
+architecture.md   本文：代码的结构和原理
+benchmark.md      性能基准的设计和结果
+building.md       从源码构建
+spikes/           各平台的验证记录
+```
+
 目录：
 
+0. [文件结构](#文件结构)
 1. [五分钟版本](#1-五分钟版本)
 2. [进程模型](#2-进程模型)
 3. [分层与依赖规则](#3-分层与依赖规则)

@@ -8,6 +8,7 @@ require (
 	github.com/oklog/ulid/v2 v2.1.2
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/spf13/cobra v1.10.2
+	github.com/wailsapp/go-webview2 v1.0.22
 	github.com/wailsapp/wails/v2 v2.16.0
 	golang.org/x/sys v0.48.0
 	modernc.org/sqlite v1.60.1
@@ -44,7 +45,6 @@ require (
 	github.com/tkrajina/go-reflector v0.5.8 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
-	github.com/wailsapp/go-webview2 v1.0.22 // indirect
 	github.com/wailsapp/mimetype v1.4.1 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	golang.org/x/crypto v0.53.0 // indirect

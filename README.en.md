@@ -119,7 +119,7 @@ If Watchink is already installed, only steps 4 and 5 are needed; the desktop app
 
 ## Status
 
-Early release (v0.0.1).
+Early release (v0.0.2).
 
 | Platform | Automated checks | Checked by hand |
 | --- | --- | --- |

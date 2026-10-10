@@ -1,6 +1,9 @@
-// Command watchink is the single executable behind every run mode
-// : desktop window, foreground engine (`serve`),
-// background engine (`engine run`), MCP stdio server and the CLI client.
+// Command watchink is the single executable behind every role: desktop
+// window, foreground engine (`serve`), background engine (`engine run`), MCP
+// stdio server, child-process guard and the CLI client.
+//
+// main.go wires the layers together; roles.go decides which role a process
+// takes; everything a client command does lives in internal/entry/cli.
 package main
 
 import (
@@ -15,7 +18,6 @@ import (
 	"watchink/internal/app"
 	"watchink/internal/core/service"
 	"watchink/internal/entry/cli"
-	"watchink/internal/entry/mcpserver"
 	"watchink/internal/infra/config"
 	"watchink/internal/infra/procx"
 	"watchink/internal/transport/client"
@@ -37,19 +39,11 @@ func main() {
 	defer stop()
 
 	deps := cli.Deps{
-		Connect:    client.Connect,
-		RunDesktop: runDesktop, // nil in nogui builds
-		WebView:    webView,    // nil in nogui builds
-		RunServe: func(ctx context.Context, o cli.ServeOptions) error {
-			return runEngine(ctx, o.DataDir, discovery.ModeForeground, o.Port, o.Open)
-		},
-		RunEngine: func(ctx context.Context, dataDir string) error {
-			return runEngine(ctx, dataDir, discovery.ModeBackground, 0, false)
-		},
-		RunMCP: func(ctx context.Context, o cli.MCPOptions) error {
-			return mcpserver.Run(ctx, mcpserver.Options{Connect: client.Connect, DataDir: o.DataDir, NoSpawn: o.NoSpawn, Version: version.Version})
-		},
-		Guard:           procx.GuardMain,
+		Connect:         client.Connect,
+		HasDesktop:      runDesktop != nil,
+		Launch:          roles(),
+		Default:         defaultRole(),
+		WebView:         webView, // nil in nogui builds
 		OpenBrowser:     procx.OpenBrowser,
 		ResolveDataDir:  config.ResolveDataDir,
 		SetDataDir:      config.WriteLocation,

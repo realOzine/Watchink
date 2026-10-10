@@ -9,55 +9,6 @@ import (
 	"watchink/internal/app"
 )
 
-// guardCommand is the hidden re-exec entry used by the process supervisor.
-const guardCommand = "_guard"
-
-func (e *env) runDesktop(cmd *cobra.Command) error {
-	return e.run(func(c *call) error {
-		if c.deps.RunDesktop == nil {
-			return app.E(app.CodeInvalidArgument, "此构建不包含桌面界面").
-				WithHint("改用 `watchink web` 在浏览器中打开，或使用其他子命令")
-		}
-		dir, err := c.resolveDataDir()
-		if err != nil {
-			return err
-		}
-		return c.deps.RunDesktop(c.ctx, dir)
-	})(cmd, nil)
-}
-
-func (e *env) cmdDesktop() *cobra.Command {
-	return &cobra.Command{
-		Use:   "desktop",
-		Short: "打开桌面窗口",
-		Args:  noArgs,
-		RunE:  func(cmd *cobra.Command, _ []string) error { return e.runDesktop(cmd) },
-	}
-}
-
-func (e *env) cmdServe() *cobra.Command {
-	var opts ServeOptions
-	cmd := &cobra.Command{
-		Use:   "serve",
-		Short: "前台运行 Engine 并打印 Web 地址（不会因空闲退出）",
-		Args:  noArgs,
-		RunE: e.run(func(c *call) error {
-			if c.deps.RunServe == nil {
-				return app.E(app.CodeInternal, "此构建不支持 serve")
-			}
-			dir, err := c.resolveDataDir()
-			if err != nil {
-				return err
-			}
-			opts.DataDir = dir
-			return c.deps.RunServe(c.ctx, opts)
-		}),
-	}
-	cmd.Flags().IntVar(&opts.Port, "port", 0, "监听端口（默认取配置 engine.port）")
-	cmd.Flags().BoolVar(&opts.Open, "open", false, "启动后在默认浏览器中打开 Web")
-	return cmd
-}
-
 // webResult is the --json output of `web`.
 type webResult struct {
 	URL    string `json:"url"`
@@ -109,44 +60,6 @@ func (e *env) cmdWeb() *cobra.Command {
 				})
 			})
 		}),
-	}
-}
-
-func (e *env) cmdMCP() *cobra.Command {
-	return &cobra.Command{
-		Use:   "mcp",
-		Short: "运行 MCP stdio 服务器（供 agent 客户端接入）",
-		Args:  noArgs,
-		RunE: e.run(func(c *call) error {
-			if c.deps.RunMCP == nil {
-				return app.E(app.CodeInternal, "此构建不支持 mcp")
-			}
-			dir, err := c.resolveDataDir()
-			if err != nil {
-				return err
-			}
-			// stdout belongs to the MCP protocol: nothing is printed here.
-			return c.deps.RunMCP(c.ctx, MCPOptions{DataDir: dir, NoSpawn: c.noSpawn})
-		}),
-	}
-}
-
-// cmdGuard keeps `_guard` in the tree for callers that execute the cobra
-// command directly; Execute dispatches it before cobra parses anything.
-func (e *env) cmdGuard() *cobra.Command {
-	return &cobra.Command{
-		Use:                guardCommand,
-		Hidden:             true,
-		DisableFlagParsing: true,
-		RunE: func(_ *cobra.Command, args []string) error {
-			if e.deps.Guard == nil {
-				return app.E(app.CodeInvalidArgument, "此构建不支持 %s 命令", guardCommand)
-			}
-			if code := e.deps.Guard(args); code != 0 {
-				return &failure{err: app.E(app.CodeInternal, "%s 以状态 %d 退出", guardCommand, code), exit: code, silent: true}
-			}
-			return nil
-		},
 	}
 }
 
@@ -251,23 +164,7 @@ func (e *env) cmdEngine() *cobra.Command {
 	}
 	stop.Flags().BoolVar(&force, "force", false, "立即终止子进程，不等待阶段到达可中断点")
 
-	run := &cobra.Command{
-		Use:    "run",
-		Short:  "内部命令：后台 Engine",
-		Hidden: true,
-		Args:   noArgs,
-		RunE: e.run(func(c *call) error {
-			if c.deps.RunEngine == nil {
-				return app.E(app.CodeInternal, "此构建不支持 engine run")
-			}
-			dir, err := c.resolveDataDir()
-			if err != nil {
-				return err
-			}
-			return c.deps.RunEngine(c.ctx, dir)
-		}),
-	}
-	return group("engine", "Engine 管理", status, stop, run)
+	return group("engine", "Engine 管理", status, stop)
 }
 
 // versionInfo is the --json output of `version`.
@@ -284,7 +181,7 @@ func (e *env) cmdVersion() *cobra.Command {
 		Short: "显示版本与 build_id",
 		Args:  noArgs,
 		RunE: e.run(func(c *call) error {
-			v := versionInfo{Version: c.deps.Version, BuildID: c.deps.BuildID, API: app.APIVersion, Desktop: c.deps.RunDesktop != nil}
+			v := versionInfo{Version: c.deps.Version, BuildID: c.deps.BuildID, API: app.APIVersion, Desktop: c.deps.HasDesktop}
 			return c.emit(v, func(w io.Writer) {
 				fmt.Fprintf(w, "watchink %s (build %s)\n", v.Version, v.BuildID)
 			})

@@ -83,7 +83,7 @@ func (e *env) cmdDoctor() *cobra.Command {
 			// Linux takes the WebView and the media decoders from system
 			// packages, which the injected check looks for. Windows
 			// needs the WebView2 runtime.
-			if c.deps.RunDesktop != nil {
+			if c.deps.HasDesktop {
 				add(webViewCheck(desktopCheck(c.deps.DesktopPrereqs), c.deps.WebView))
 			} else {
 				add(doctorCheck{Name: "desktop", Status: checkSkipped, Message: "此构建不包含桌面界面（nogui）"})

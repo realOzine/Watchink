@@ -20,24 +20,6 @@ import (
 	"watchink/internal/version"
 )
 
-// ServeOptions is passed to Deps.RunServe (`watchink serve`).
-type ServeOptions struct {
-	// DataDir is the resolved data directory (see Deps.ResolveDataDir).
-	DataDir string
-	// Port is the --port flag; 0 means the configured engine port.
-	Port int
-	// Open asks the foreground engine to open the Web UI once it listens.
-	Open bool
-}
-
-// MCPOptions is passed to Deps.RunMCP (`watchink mcp`).
-type MCPOptions struct {
-	// DataDir is the resolved data directory (see Deps.ResolveDataDir).
-	DataDir string
-	// NoSpawn mirrors the global --no-spawn flag.
-	NoSpawn bool
-}
-
 // Deps carries everything the command tree needs from the rest of the
 // program. Nil function fields disable the matching command with a clear
 // error instead of panicking.
@@ -45,24 +27,20 @@ type Deps struct {
 	// Connect connects to (and by default spawns) the engine.
 	Connect app.Connector
 
-	// RunDesktop opens the desktop window; nil in nogui builds, where the
-	// bare command prints help and `desktop` fails with a clear message.
-	RunDesktop func(ctx context.Context, dataDir string) error
+	// HasDesktop is true when this build contains the desktop window. It
+	// only affects what `doctor` and `version` report.
+	HasDesktop bool
 	// WebView reports the WebView runtime the desktop window depends on, for
 	// `doctor`: required is false where the system ships one (macOS), and
 	// version is "" when a required runtime (Windows: WebView2) is missing.
 	// nil means there is nothing to check.
 	WebView func() (name, version string, required bool)
-	// RunServe runs the engine in the foreground (`serve`).
-	RunServe func(ctx context.Context, opts ServeOptions) error
-	// RunEngine runs the background engine (hidden `engine run`).
-	RunEngine func(ctx context.Context, dataDir string) error
-	// RunMCP runs the MCP stdio server (`mcp`).
-	RunMCP func(ctx context.Context, opts MCPOptions) error
-	// Guard implements the hidden `_guard` command. It receives every
-	// argument after `_guard` untouched (no flag parsing) and returns the
-	// process exit code.
-	Guard func(args []string) int
+	// Launch lists the commands that turn this process into something other
+	// than a client (see Launch). They are supplied by cmd/watchink.
+	Launch []Launch
+	// Default runs when the program is started without a subcommand; nil
+	// prints the help text.
+	Default func(ctx context.Context, g Globals) error
 
 	// OpenBrowser opens a URL in the default browser (`web`).
 	OpenBrowser func(url string) error
@@ -144,11 +122,10 @@ func newRoot(deps Deps) (*cobra.Command, *env) {
 		// The root deliberately has no Args validator: cobra then reports an
 		// unknown first argument as "unknown command", a usage error.
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if deps.RunDesktop == nil {
-				// nogui build: the bare command prints help.
+			if deps.Default == nil {
 				return cmd.Help()
 			}
-			return e.runDesktop(cmd)
+			return e.launch(deps.Default)(cmd, args)
 		},
 		CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
 	}
@@ -173,11 +150,11 @@ func newRoot(deps Deps) (*cobra.Command, *env) {
 	})
 
 	root.AddCommand(
-		e.cmdDesktop(), e.cmdServe(), e.cmdWeb(), e.cmdMCP(), e.cmdGuard(),
-		e.cmdSetup(), e.cmdImport(), e.cmdJobs(), e.cmdVideos(), e.cmdNote(),
+		e.cmdWeb(), e.cmdSetup(), e.cmdImport(), e.cmdJobs(), e.cmdVideos(), e.cmdNote(),
 		e.cmdTranscript(), e.cmdExport(), e.cmdConfig(), e.cmdLLM(),
 		e.cmdTools(), e.cmdEngine(), e.cmdDoctor(), e.cmdVersion(),
 	)
+	e.addLaunchers(root)
 	return root, e
 }
 
@@ -185,15 +162,6 @@ func newRoot(deps Deps) (*cobra.Command, *env) {
 // to stdout and diagnostics to stderr following the output contract,
 // and returns the process exit code. It never calls os.Exit.
 func Execute(ctx context.Context, deps Deps, args []string, stdout, stderr io.Writer) (exitCode int) {
-	// `_guard` is dispatched before cobra sees anything so that its
-	// arguments reach Guard byte-for-byte.
-	if len(args) > 0 && args[0] == guardCommand {
-		if deps.Guard == nil {
-			return finish(app.E(app.CodeInvalidArgument, "此构建不支持 %s 命令", guardCommand), scanJSONFlag(args[:1]), stdout, stderr)
-		}
-		return deps.Guard(args[1:])
-	}
-
 	root, e := newRoot(deps)
 	root.SetArgs(args)
 	root.SetOut(stdout)

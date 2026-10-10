@@ -22,7 +22,7 @@
 
 ```text
 Watchink/
-├─ cmd/watchink/        程序入口：唯一的可执行文件，按子命令扮演不同角色
+├─ cmd/watchink/        程序入口：唯一的可执行文件；装配各层，并决定进程当哪种角色
 ├─ internal/            全部 Go 代码，按层分组（见下）
 ├─ frontend/            界面：React + TypeScript 单页应用，桌面和浏览器共用
 ├─ build/               各平台打包用的资源：图标、Info.plist、Windows 清单等
@@ -36,13 +36,27 @@ Watchink/
 └─ .gitignore / .gitattributes
 ```
 
-### `cmd/watchink/`：入口
+### `cmd/watchink/`：程序入口
+
+操作系统启动程序时最先执行的地方。它不含业务，只做两件事：把各层接起来；看第一个参数，决定这个进程当哪种角色。
 
 ```text
-main.go            把各包装配起来：解析子命令，决定当桌面、CLI、MCP 还是 Engine
+main.go            装配：把连接 Engine、打开浏览器等函数交给命令行；在本进程里运行 Engine
+roles.go           角色：desktop、serve、engine run、mcp 这几个“让进程变成别的东西”的命令
 desktop_gui.go     带 desktop 构建标签时编译：提供打开窗口的函数
 desktop_nogui.go   不带标签时编译：没有窗口，同名变量为空
 ```
+
+同一个可执行文件，按第一个参数分成这几种角色：
+
+| 第一个参数 | 角色 | 在哪实现 |
+| --- | --- | --- |
+| 无，或 `desktop` | 桌面窗口 | `entry/desktop` |
+| `serve` | 前台 Engine | `transport/engine` + `core/service` |
+| `engine run` | 后台 Engine，由客户端在后台拉起 | 同上 |
+| `mcp` | 给 Agent 用的 MCP 服务 | `entry/mcpserver` |
+| `_guard` | 守护外部工具的子进程（macOS） | `infra/procx` |
+| 其余 | 命令行客户端：向 Engine 发请求并打印结果 | `entry/cli` |
 
 ### `internal/`：Go 代码，按层分组
 
@@ -51,7 +65,7 @@ desktop_nogui.go   不带标签时编译：没有窗口，同名变量为空
 ```text
 internal/
 ├─ app/          契约：接口和数据结构
-├─ entry/        入口：cli、mcpserver、desktop
+├─ entry/        使用入口：cli、mcpserver、desktop
 ├─ transport/    传输：client、api、engine、discovery
 ├─ core/         核心：service、jobs、pipeline、events
 ├─ capability/   能力库：notes、llm、media、asr、tools
@@ -72,19 +86,20 @@ app/                 契约层：所有入口和 Engine 之间的共同语言，
 └─ ids.go              各类 ID 的生成（vid_、job_、tr_、seg_、note_…）
 ```
 
-#### `internal/entry/`：入口层
+#### `internal/entry/`：使用入口
 
-用户和 Agent 接触到的三种入口。它们只认识 `app` 里的接口，不碰数据库和调度器。
+用户和 Agent 使用这个程序的三种方式：命令行、MCP、桌面窗口。它们只认识 `app` 里的接口，不碰数据库和调度器。注意和 `cmd/watchink` 的区别：那里是程序的启动点，这里是三种使用方式各自的实现。
 
 ```text
-cli/                 命令行：cobra 命令树，只通过 app.Service 干活
+cli/                 命令行客户端：cobra 命令树，只通过 app.Service 干活
 ├─ cli.go              根命令、全局参数、统一的错误输出和退出码
 ├─ cmd_jobs.go         import、jobs list / get / cancel / retry
 ├─ cmd_videos.go       videos、note、transcript、export
 ├─ cmd_config.go       config show / get / set / set-secret / set-data-dir
 ├─ cmd_setup.go        setup：首次配置在线模型并准备工具
 ├─ cmd_tools.go        tools status / prepare / update / import，llm test
-├─ cmd_run.go          desktop、serve、web、mcp、engine status / stop
+├─ cmd_run.go          web、engine status / stop、version
+├─ launch.go           让 cmd/watchink 把角色命令挂到命令树上的接口
 ├─ cmd_doctor.go       doctor：诊断数据目录、Engine、工具、模型、桌面依赖
 ├─ output.go           --json 与人类可读两种输出、表格排版
 ├─ wait.go             --wait / --follow：长轮询任务直到结束
@@ -403,7 +418,7 @@ spikes/           各平台的验证记录
 | 后台 Engine 空闲（无任务、无事件流订阅者、一段时间无请求）后自动退出 | `engine/run.go` 的 `isIdle` |
 | 外部工具随 Engine 一起消失：macOS 用进程组加 `_guard` 守护进程，Linux 用进程组加 `Pdeathsig`，Windows 用 Job Object | `procx/sys_darwin.go`、`sys_linux.go`、`sys_windows.go`（Unix 共用部分在 `sys_unix.go`） |
 
-入口是 `cmd/watchink/main.go`，不到 150 行，只做装配：把各包的函数填进 `cli.Deps`，把 `service.Open` 交给 `engine.Run`。读它就能看到所有角色是怎么接起来的。桌面代码只在带 `desktop` 构建标签时编译（`desktop_gui.go` / `desktop_nogui.go`）。
+程序入口是 `cmd/watchink`：`main.go` 只做装配，把各包的函数填进 `cli.Deps`，把 `service.Open` 交给 `engine.Run`；`roles.go` 列出让进程变成窗口、Engine 或 MCP 服务的那几个命令。两个文件加起来两百行左右，读它们就能看到所有角色是怎么接起来的。桌面代码只在带 `desktop` 构建标签时编译（`desktop_gui.go` / `desktop_nogui.go`）。
 
 ## 3. 分层与依赖规则
 
@@ -413,7 +428,7 @@ spikes/           各平台的验证记录
 cmd/watchink ── 装配：把各层接起来
    │
    ▼
-entry/        cli · mcpserver · desktop      入口：只认识 app 里的接口和数据结构
+entry/        cli · mcpserver · desktop      使用入口：只认识 app 里的接口和数据结构
    │
    ▼
 transport/    client ──HTTP──▶ api           传输：client 实现 app.Remote，api 服务 app.Local
@@ -684,7 +699,7 @@ go run ./internal/bench/cmd/loadtest                    # 并发 HTTP 压测
 ## 16. 推荐阅读顺序
 
 1. `internal/app/service.go`、`dto.go`——系统能做什么。
-2. `cmd/watchink/main.go`——各部分怎么接起来。
+2. `cmd/watchink/main.go` 和 `roles.go`——各部分怎么接起来，进程怎么决定自己的角色。
 3. `internal/core/service/service.go` 的 `Open`——Engine 内部怎么装配。
 4. `internal/core/service/imports.go` 的 `Import`——一个请求怎么变成任务。
 5. `internal/core/pipeline/pipeline.go`，然后任选一个 `stage_*.go`（建议 `stage_transcribe.go`）——阶段的统一写法。

@@ -7,12 +7,15 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 
 	"watchink/internal/app"
 	"watchink/internal/entry/cli/clitest"
@@ -1054,7 +1057,7 @@ func TestDoctor(t *testing.T) {
 		libav := SystemPrereq{Name: "GStreamer libav 插件", Package: "gstreamer1.0-libav", Optional: true, Found: true}
 		run := func(list []SystemPrereq, args ...string) (result, map[string]any) {
 			h := newHarness(t)
-			h.deps.RunDesktop = func(context.Context, string) error { return nil }
+			h.deps.HasDesktop = true
 			h.deps.DesktopPrereqs = func() []SystemPrereq { return list }
 			res := h.run(append([]string{"doctor"}, args...)...)
 			if len(args) == 0 {
@@ -1106,7 +1109,7 @@ func TestDoctor(t *testing.T) {
 	})
 	t.Run("desktop webview", func(t *testing.T) {
 		h := newHarness(t)
-		h.deps.RunDesktop = func(context.Context, string) error { return nil }
+		h.deps.HasDesktop = true
 		// The system ships the WebView (macOS): nothing to report.
 		h.deps.WebView = func() (string, string, bool) { return "", "", false }
 		res := h.run("doctor", "--json")
@@ -1173,26 +1176,29 @@ func TestWeb(t *testing.T) {
 	}
 }
 
-func TestProcessCommands(t *testing.T) {
+// TestLaunchCommands covers the mechanism cmd/watchink uses to add the
+// commands that turn the process into another role: they join the tree
+// (also under an existing group), get the resolved data directory and the
+// global flags, never connect to an engine, and report errors like any
+// other command.
+func TestLaunchCommands(t *testing.T) {
 	h := newHarness(t)
 	var got []string
-	h.deps.RunServe = func(_ context.Context, o ServeOptions) error {
-		got = append(got, "serve", o.DataDir)
-		if o.Port != 8080 || !o.Open {
-			t.Errorf("serve options = %+v", o)
+	var port, servedOn int
+	record := func(name string) func(context.Context, Globals) error {
+		return func(_ context.Context, g Globals) error {
+			got = append(got, name, g.DataDir, fmt.Sprint(g.NoSpawn))
+			return nil
 		}
-		return nil
 	}
-	h.deps.RunEngine = func(_ context.Context, dir string) error { got = append(got, "engine", dir); return nil }
-	h.deps.RunMCP = func(_ context.Context, o MCPOptions) error {
-		got = append(got, "mcp", o.DataDir)
-		if !o.NoSpawn {
-			t.Errorf("mcp options = %+v", o)
-		}
-		return nil
+	h.deps.Launch = []Launch{
+		{Use: "serve", Short: "s", Setup: func(cmd *cobra.Command) { cmd.Flags().IntVar(&port, "port", 0, "") },
+			Run: func(ctx context.Context, g Globals) error { servedOn = port; return record("serve")(ctx, g) }},
+		{Parent: "engine", Use: "run", Short: "r", Hidden: true, Run: record("engine run")},
+		{Use: "mcp", Short: "m", Run: record("mcp")},
 	}
 	for _, args := range [][]string{
-		{"serve", "--port", "8080", "--open"},
+		{"serve", "--port", "8080"},
 		{"engine", "run", "--data-dir", "/e"},
 		{"mcp", "--no-spawn"},
 	} {
@@ -1200,74 +1206,55 @@ func TestProcessCommands(t *testing.T) {
 			t.Errorf("%v: %+v", args, res)
 		}
 	}
-	if want := []string{"serve", "/data", "engine", "/e", "mcp", "/data"}; !reflect.DeepEqual(got, want) {
-		t.Errorf("calls = %v", got)
+	want := []string{"serve", "/data", "false", "engine run", "/e", "false", "mcp", "/data", "true"}
+	if !reflect.DeepEqual(got, want) || servedOn != 8080 {
+		t.Errorf("calls = %v, serve saw port %d", got, servedOn)
 	}
 	if len(h.conns) != 0 {
-		t.Error("process commands must not connect")
+		t.Error("launch commands must not connect")
 	}
-	h.deps.RunEngine = func(context.Context, string) error { return errors.New("bind failed") }
+	// The client subcommands of the group are still there.
+	if res := h.run("engine", "status", "--json"); res.code != 0 {
+		t.Errorf("engine status next to a launcher: %+v", res)
+	}
+	if res := h.run("engine", "--help"); strings.Contains(res.out, "后台 Engine") {
+		t.Errorf("hidden launcher shown in help: %s", res.out)
+	}
+	h.deps.Launch = []Launch{{Parent: "engine", Use: "run", Run: func(context.Context, Globals) error { return errors.New("bind failed") }}}
 	if res := h.run("engine", "run", "--json"); res.code != 1 || errCode(t, oneJSON(t, res.out)) != "INTERNAL" {
-		t.Errorf("engine run failure: %+v", res)
+		t.Errorf("launcher failure: %+v", res)
 	}
 }
 
-func TestDesktopAndBareCommand(t *testing.T) {
-	// nogui: the bare command prints help, `desktop` is a clear error.
+// TestBareCommand: without a subcommand the program runs Deps.Default, or
+// prints help when there is none (a build without the desktop window).
+func TestBareCommand(t *testing.T) {
 	h := newHarness(t)
 	res := h.run()
 	if res.code != 0 || !strings.Contains(res.out, "import") || !strings.Contains(res.out, "Usage") {
-		t.Errorf("bare nogui: %+v", res)
+		t.Errorf("bare without a default: %+v", res)
 	}
-	if strings.Contains(res.out, "_guard") || strings.Contains(res.out, "completion") {
+	if strings.Contains(res.out, "completion") {
 		t.Errorf("hidden commands in help: %s", res.out)
 	}
-	if res = h.run("desktop"); res.code != app.ExitUsage || !strings.Contains(res.err, "不包含桌面界面") {
-		t.Errorf("desktop nogui: %+v", res)
-	}
 	var dirs []string
-	h.deps.RunDesktop = func(_ context.Context, dir string) error { dirs = append(dirs, dir); return nil }
+	h.deps.Default = func(_ context.Context, g Globals) error { dirs = append(dirs, g.DataDir); return nil }
 	h.run()
-	h.run("desktop", "--data-dir", "/d")
+	h.run("--data-dir", "/d")
 	if !reflect.DeepEqual(dirs, []string{"/data", "/d"}) {
-		t.Errorf("desktop dirs = %v", dirs)
+		t.Errorf("default dirs = %v", dirs)
 	}
 }
 
-func TestGuardPassesRawArgs(t *testing.T) {
-	h := newHarness(t)
-	var got []string
-	h.deps.Guard = func(args []string) int { got = args; return 37 }
-	raw := []string{"_guard", "--json", "--pid=1", "--", "-x", "--help"}
-	if res := h.run(raw...); res.code != 37 || res.out != "" || res.err != "" {
-		t.Errorf("%+v", res)
-	}
-	if !reflect.DeepEqual(got, raw[1:]) {
-		t.Errorf("guard args = %v", got)
-	}
-	// Through the cobra tree as well.
-	root := New(h.deps)
-	root.SetArgs(raw)
-	root.SetOut(io.Discard)
-	root.SetErr(io.Discard)
-	err := root.Execute()
-	var f *failure
-	if !errors.As(err, &f) || f.exit != 37 || !reflect.DeepEqual(got, raw[1:]) {
-		t.Errorf("cobra guard: %v %v", err, got)
-	}
-	h.deps.Guard = nil
-	if res := h.run("_guard", "x"); res.code != app.ExitUsage {
-		t.Errorf("nil guard: %+v", res)
-	}
-}
-
-func TestEveryDocumentedCommandExists(t *testing.T) {
+// The role commands (desktop, serve, mcp, engine run) are added by
+// cmd/watchink and checked in its own test.
+func TestEveryClientCommandExists(t *testing.T) {
 	root := New(Deps{})
 	for _, path := range []string{
-		"desktop", "serve", "web", "mcp", "setup", "import", "jobs list", "jobs get", "jobs cancel", "jobs retry",
+		"web", "setup", "import", "jobs list", "jobs get", "jobs cancel", "jobs retry",
 		"videos list", "videos get", "note get", "transcript get", "export", "config show", "config get", "config set",
 		"config set-data-dir", "config set-secret", "llm test", "tools status", "tools prepare", "tools update",
-		"tools import", "tools import-model", "engine status", "engine stop", "engine run", "doctor", "version", "_guard",
+		"tools import", "tools import-model", "engine status", "engine stop", "doctor", "version",
 	} {
 		cmd, _, err := root.Find(strings.Fields(path))
 		if err != nil || cmd.CommandPath() != "watchink "+path {

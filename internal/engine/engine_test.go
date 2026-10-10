@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -153,7 +154,8 @@ func TestRunLifecycleAndDiscovery(t *testing.T) {
 	before := time.Now().Add(-time.Second)
 	r := start(t, dir, nil)
 
-	// engine.json: exactly the §5.1 fields, mode 0600.
+	// engine.json: exactly the §5.1 fields, mode 0600 (Windows has no
+	// permission bits; the file is protected by the profile directory's ACL).
 	raw, err := os.ReadFile(engine.DiscoveryPath(dir))
 	if err != nil {
 		t.Fatal(err)
@@ -172,7 +174,7 @@ func TestRunLifecycleAndDiscovery(t *testing.T) {
 		t.Errorf("engine.json has extra fields: %v", fields)
 	}
 	st, _ := os.Stat(engine.DiscoveryPath(dir))
-	if st.Mode().Perm() != 0o600 {
+	if runtime.GOOS != "windows" && st.Mode().Perm() != 0o600 {
 		t.Errorf("engine.json mode = %v", st.Mode().Perm())
 	}
 	d, err := engine.ReadDiscovery(dir)
@@ -312,7 +314,7 @@ func TestStaleDiscoveryIsIgnoredAndReplaced(t *testing.T) {
 	if err != nil || d.Token == "stale" || *d != r.disc {
 		t.Fatalf("stale discovery not replaced: %+v %v", d, err)
 	}
-	if st, _ := os.Stat(engine.DiscoveryPath(dir)); st.Mode().Perm() != 0o600 {
+	if st, _ := os.Stat(engine.DiscoveryPath(dir)); runtime.GOOS != "windows" && st.Mode().Perm() != 0o600 {
 		t.Fatalf("mode = %v", st.Mode().Perm())
 	}
 

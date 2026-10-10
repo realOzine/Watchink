@@ -176,6 +176,12 @@ func (r *rotatingFile) rotate() error {
 		_ = os.Rename(fmt.Sprintf("%s.%d", r.path, i), fmt.Sprintf("%s.%d", r.path, i+1))
 	}
 	if err := os.Rename(r.path, r.path+".1"); err != nil && !os.IsNotExist(err) {
+		// Windows cannot rename a file that another program (a log viewer)
+		// has open. Keep appending to the oversized file rather than lose
+		// the log; the next write tries to rotate again.
+		if r.open() == nil {
+			return nil
+		}
 		return err
 	}
 	return r.open()

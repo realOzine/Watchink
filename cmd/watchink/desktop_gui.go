@@ -13,6 +13,9 @@ import (
 	"watchink/internal/webui"
 )
 
+// webView is the `doctor` probe of the system WebView (§16.3).
+var webView = desktop.SystemWebView
+
 // runDesktop opens the Wails window. It must run on the main goroutine.
 var runDesktop = func(_ context.Context, dataDir string) error {
 	assets, _ := webui.FS()

@@ -306,6 +306,12 @@ func (m *Manager) errNoPlatform(name string) *app.Error {
 		WithHint("清单中没有该平台的下载地址。").WithDetail("tool", name).WithDetail("platform", m.platform)
 }
 
+// embeddedFile is the path of an embedded binary inside m.embedded; its
+// sha256 sits next to it as "<file>.sha256".
+func (m *Manager) embeddedFile(name string) string {
+	return m.platform + "/" + exeName(m.platform, name)
+}
+
 // embeddedSHA returns the recorded sha256 of an embedded binary, or
 // TOOL_MISSING when this build was made without it.
 func (m *Manager) embeddedSHA(name string) (string, *app.Error) {
@@ -315,11 +321,11 @@ func (m *Manager) embeddedSHA(name string) (string, *app.Error) {
 			WithHint(fmt.Sprintf("请先运行 third_party/whisper/build.sh %s %s 后重新构建，或设置环境变量 %s 指向可用的 whisper-cli。", osName, arch, EnvWhisperBin)).
 			WithDetail("tool", name).WithDetail("platform", m.platform)
 	}
-	// TODO(windows): the embedded file name will need an ".exe" suffix.
-	if st, err := fs.Stat(m.embedded, m.platform+"/"+name); err != nil || st.IsDir() {
+	file := m.embeddedFile(name)
+	if st, err := fs.Stat(m.embedded, file); err != nil || st.IsDir() {
 		return "", missing()
 	}
-	data, err := fs.ReadFile(m.embedded, m.platform+"/"+name+".sha256")
+	data, err := fs.ReadFile(m.embedded, file+".sha256")
 	if err != nil {
 		return "", missing()
 	}

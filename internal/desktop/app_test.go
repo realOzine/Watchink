@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -193,7 +194,7 @@ func TestSaveExport(t *testing.T) {
 	if string(b) != "# note\nbody\n" {
 		t.Fatalf("content: %q", b)
 	}
-	if fi, _ := os.Stat(dest); fi.Mode().Perm() != 0o644 {
+	if fi, _ := os.Stat(dest); runtime.GOOS != "windows" && fi.Mode().Perm() != 0o644 {
 		t.Fatalf("mode = %v", fi.Mode().Perm())
 	}
 	if entries, _ := os.ReadDir(dir); len(entries) != 1 {
@@ -341,6 +342,9 @@ func TestOpenExternal(t *testing.T) {
 }
 
 func TestAgentSetupInfo(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses macOS paths and POSIX quoting; see TestWindowsAgentSetup")
+	}
 	a := newApp(Options{Executable: "/Applications/Watchink.app/Contents/MacOS/Watchink"})
 	s, err := a.AgentSetupInfo()
 	if err != nil {

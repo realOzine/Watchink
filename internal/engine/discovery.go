@@ -71,7 +71,9 @@ func ReadDiscovery(dataDir string) (*Discovery, error) {
 }
 
 // writeDiscovery writes engine.json atomically with mode 0600 (§5.1): the
-// file holds the engine token.
+// file holds the engine token. Windows has no permission bits; there the file
+// is private because the data directory lives in the user's profile, whose
+// ACL only admits that user.
 func writeDiscovery(dataDir string, d Discovery) error {
 	b, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
@@ -102,7 +104,7 @@ func writeDiscovery(dataDir string, d Discovery) error {
 		os.Remove(name)
 		return err
 	}
-	if err := os.Rename(name, DiscoveryPath(dataDir)); err != nil {
+	if err := replaceFile(name, DiscoveryPath(dataDir)); err != nil {
 		os.Remove(name)
 		return err
 	}

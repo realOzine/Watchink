@@ -48,6 +48,11 @@ type Deps struct {
 	// RunDesktop opens the desktop window; nil in nogui builds, where the
 	// bare command prints help and `desktop` fails with a clear message.
 	RunDesktop func(ctx context.Context, dataDir string) error
+	// WebView reports the WebView runtime the desktop window depends on, for
+	// `doctor`: required is false where the system ships one (macOS), and
+	// version is "" when a required runtime (Windows: WebView2) is missing.
+	// nil means there is nothing to check.
+	WebView func() (name, version string, required bool)
 	// RunServe runs the engine in the foreground (`serve`).
 	RunServe func(ctx context.Context, opts ServeOptions) error
 	// RunEngine runs the background engine (hidden `engine run`).
@@ -118,6 +123,11 @@ func newRoot(deps Deps) (*cobra.Command, *env) {
 		deps.BuildID = version.BuildID
 	}
 	e := &env{deps: deps}
+
+	// On Windows cobra refuses to run a program started from Explorer: it
+	// prints "this is a command line tool" and exits. Watchink is also a
+	// desktop application, and a double-click is how its window is opened.
+	cobra.MousetrapHelpText = ""
 
 	root := &cobra.Command{
 		Use:   "watchink",

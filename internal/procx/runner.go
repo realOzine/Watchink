@@ -1,9 +1,9 @@
 // Package procx is the only package allowed to create child processes
 // (docs/v0.md §4.3, §5.5). It runs external tools from an argv array (never
-// through a shell), puts every child in its own process group so that a
-// cancel reaches the whole tree, keeps the last 64 KiB of stderr (redacted)
-// for error details, and — on macOS — wraps children in the hidden
-// `watchink _guard` subcommand so they cannot outlive a crashed engine.
+// through a shell), puts every child in its own process group (a Job Object on
+// Windows) so that a cancel reaches the whole tree, keeps the last 64 KiB of
+// stderr (redacted) for error details, and — on macOS — wraps children in the
+// hidden `watchink _guard` subcommand so they cannot outlive a crashed engine.
 package procx
 
 import (
@@ -211,6 +211,14 @@ func (r *Runner) Run(ctx context.Context, c Cmd) (*Result, error) {
 			WithStage(c.Stage).WithDetail("tool", name).WithDetail("error", Redact(err.Error())).WithCause(err)
 	}
 	pid := cmd.Process.Pid
+	// Platforms whose process group is a separate kernel object (the Windows
+	// Job Object) create it here; elsewhere this is a no-op.
+	if err := attachGroup(cmd); err != nil {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		return nil, app.E(app.CodeToolFailed, "无法启动外部工具 %s", name).
+			WithStage(c.Stage).WithDetail("tool", name).WithDetail("error", Redact(err.Error())).WithCause(err)
+	}
 	ch := &child{pid: pid, jobID: c.JobID}
 	r.mu.Lock()
 	r.children[pid] = ch
@@ -252,6 +260,7 @@ func (r *Runner) Run(ctx context.Context, c Cmd) (*Result, error) {
 	killed := ch.killed
 	delete(r.children, pid)
 	r.mu.Unlock()
+	releaseGroup(pid)
 	if r.opts.OnExit != nil {
 		r.opts.OnExit(pid)
 	}

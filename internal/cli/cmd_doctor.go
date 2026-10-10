@@ -78,13 +78,8 @@ func (e *env) cmdDoctor() *cobra.Command {
 				c.doctorEngine(ctx, r, add)
 			}
 
-			// WebView prerequisite (§13.4): macOS ships WKWebView with the
-			// system, so only the presence of the desktop UI is reported.
-			if c.deps.RunDesktop != nil {
-				add(doctorCheck{Name: "desktop", Status: checkOK, Message: "此构建包含桌面界面"})
-			} else {
-				add(doctorCheck{Name: "desktop", Status: checkSkipped, Message: "此构建不包含桌面界面（nogui）"})
-			}
+			// WebView prerequisite (§13.4, §16.3).
+			add(c.desktopCheck())
 
 			var failed []doctorCheck
 			for _, ch := range rep.Checks {
@@ -119,6 +114,34 @@ func (e *env) cmdDoctor() *cobra.Command {
 			}}
 		}),
 	}
+}
+
+// desktopCheck reports whether this build has the desktop UI and whether
+// the WebView it runs on is present. macOS ships WKWebView with the system;
+// on Windows the WebView2 runtime may have to be installed first. A missing
+// runtime is a warning, not a failure: everything but the window still works,
+// and the window offers to install it.
+func (c *call) desktopCheck() doctorCheck {
+	if c.deps.RunDesktop == nil {
+		return doctorCheck{Name: "desktop", Status: checkSkipped, Message: "此构建不包含桌面界面（nogui）"}
+	}
+	ch := doctorCheck{Name: "desktop", Status: checkOK, Message: "此构建包含桌面界面"}
+	if c.deps.WebView == nil {
+		return ch
+	}
+	name, version, required := c.deps.WebView()
+	if !required {
+		return ch
+	}
+	ch.Details = map[string]any{"webview": name, "webview_version": version}
+	if version == "" {
+		ch.Status = checkWarn
+		ch.Message += "，但未检测到 " + name
+		ch.Hint = "打开桌面窗口时会提示下载安装；也可以先从 https://developer.microsoft.com/microsoft-edge/webview2/ 安装“常青版”运行时。CLI、MCP 和浏览器界面不受影响"
+		return ch
+	}
+	ch.Message += "；" + name + " " + version
+	return ch
 }
 
 // doctorEngine runs the checks that need a connected engine.

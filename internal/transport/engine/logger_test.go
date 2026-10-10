@@ -10,8 +10,9 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"watchink/internal/transport/discovery"
 
-	"watchink/internal/engine"
+	"watchink/internal/transport/engine"
 )
 
 func TestRedactor(t *testing.T) {
@@ -67,11 +68,11 @@ func TestLoggerWritesRedactedJSONLines(t *testing.T) {
 	if err := lg.Close(); err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile(engine.LogPath(dir))
+	data, err := os.ReadFile(discovery.LogPath(dir))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st, _ := os.Stat(engine.LogPath(dir)); runtime.GOOS != "windows" && st.Mode().Perm() != 0o600 {
+	if st, _ := os.Stat(discovery.LogPath(dir)); runtime.GOOS != "windows" && st.Mode().Perm() != 0o600 {
 		t.Errorf("log mode = %v", st.Mode().Perm())
 	}
 	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
@@ -114,7 +115,7 @@ func TestLogRotationKeepsFiveFiles(t *testing.T) {
 		lg.Debug("line", "i", i, "pad", pad)
 	}
 	lg.Close()
-	path := engine.LogPath(dir)
+	path := discovery.LogPath(dir)
 	var newest, oldest string
 	for i := 0; i <= 4; i++ {
 		name := path

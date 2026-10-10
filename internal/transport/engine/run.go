@@ -1,3 +1,7 @@
+// Package engine owns the engine process lifecycle: taking the
+// single-instance lock, the HTTP listener, the engine log, idle exit and
+// graceful shutdown. The service itself is built by the caller through
+// Options.Build; how clients find the engine is in the discovery package.
 package engine
 
 import (
@@ -17,6 +21,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"watchink/internal/transport/discovery"
 
 	"watchink/internal/app"
 	"watchink/internal/transport/api"
@@ -62,7 +67,7 @@ type Built struct {
 type Options struct {
 	// DataDir is the resolved data directory (required).
 	DataDir string
-	// Mode is ModeBackground (`engine run`, idles out) or ModeForeground
+	// Mode is discovery.ModeBackground (`engine run`, idles out) or discovery.ModeForeground
 	// (`serve`, also logs to Stderr and never idles out). Empty = background.
 	Mode string
 	// Port overrides the listen port: 0 uses Built.Port (then 47823), a
@@ -79,7 +84,7 @@ type Options struct {
 	Build func(ctx context.Context, env Env) (*Built, error)
 
 	// OnReady, when set, is called once the engine accepts requests.
-	OnReady func(d Discovery)
+	OnReady func(d discovery.Info)
 	// AllowedOrigins overrides the CORS origins (nil = api defaults).
 	AllowedOrigins []string
 	// LogLevel is the minimum log level; nil means Info.
@@ -104,7 +109,7 @@ type stopRequest struct {
 // Run runs an engine for opts.DataDir until ctx is cancelled, a termination
 // signal arrives, POST /api/v1/engine/shutdown is called, or (background
 // mode) the engine has been idle for the configured time. It follows the
-// start order and returns ErrAlreadyRunning when another engine owns
+// start order and returns discovery.ErrAlreadyRunning when another engine owns
 // the data directory. A clean stop returns nil.
 func Run(ctx context.Context, opts Options) (err error) {
 	if err := opts.normalize(); err != nil {
@@ -112,14 +117,14 @@ func Run(ctx context.Context, opts Options) (err error) {
 	}
 
 	// 1. The lock decides who the engine is.
-	lock, err := acquireLock(opts.DataDir)
+	lock, err := discovery.AcquireLock(opts.DataDir)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = lock.Unlock() }()
 
 	lo := LoggerOptions{Level: opts.LogLevel}
-	if opts.Mode == ModeForeground {
+	if opts.Mode == discovery.ModeForeground {
 		lo.Stderr = opts.Stderr
 	}
 	lg, err := NewLogger(opts.DataDir, lo)
@@ -168,7 +173,7 @@ func Run(ctx context.Context, opts Options) (err error) {
 	lg.AddSecret(token)
 
 	started := time.Now()
-	disc := Discovery{
+	disc := discovery.Info{
 		PID:       os.Getpid(),
 		BaseURL:   baseURL,
 		Token:     token,
@@ -201,11 +206,11 @@ func Run(ctx context.Context, opts Options) (err error) {
 	}
 
 	// 6. Publish the address and token.
-	if err := writeDiscovery(opts.DataDir, disc); err != nil {
+	if err := discovery.Write(opts.DataDir, disc); err != nil {
 		log.Error("engine discovery write failed", "error", err.Error())
 		return fmt.Errorf("engine: write engine.json: %w", err)
 	}
-	defer os.Remove(DiscoveryPath(opts.DataDir))
+	defer os.Remove(discovery.Path(opts.DataDir))
 
 	// 7. Start the scheduler and serve. The scheduler context outlives ctx so
 	// that a cancelled ctx still goes through Service.Stop first.
@@ -270,8 +275,8 @@ func (o *Options) normalize() error {
 	}
 	switch o.Mode {
 	case "":
-		o.Mode = ModeBackground
-	case ModeBackground, ModeForeground:
+		o.Mode = discovery.ModeBackground
+	case discovery.ModeBackground, discovery.ModeForeground:
 	default:
 		return fmt.Errorf("engine: unknown mode %q", o.Mode)
 	}
@@ -292,7 +297,7 @@ func newToken() (string, error) {
 
 // newHandler builds the HTTP API over the service. The engine owns the
 // process identity, so it fills those fields of EngineInfo itself.
-func newHandler(opts Options, built *Built, disc Discovery, port int, log *slog.Logger, onShutdown func(force bool)) *api.Handler {
+func newHandler(opts Options, built *Built, disc discovery.Info, port int, log *slog.Logger, onShutdown func(force bool)) *api.Handler {
 	return api.NewHandler(api.Options{
 		Service:           built.Service,
 		Token:             disc.Token,
@@ -385,7 +390,7 @@ func listen(optPort, cfgPort int, log *slog.Logger) (net.Listener, error) {
 // idleTimeout returns the idle-exit duration, or 0 when idle exit is off:
 // only background engines idle out.
 func idleTimeout(mode string, configured time.Duration) time.Duration {
-	if mode != ModeBackground || configured < 0 {
+	if mode != discovery.ModeBackground || configured < 0 {
 		return 0
 	}
 	if configured == 0 {

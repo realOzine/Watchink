@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"watchink/internal/transport/discovery"
 )
 
 // Log rotation defaults: rotate at 10 MiB, keep 5 files in total
@@ -269,7 +270,7 @@ func NewLogger(dataDir string, opts LoggerOptions) (*Logger, error) {
 	if opts.Level == nil {
 		opts.Level = slog.LevelInfo
 	}
-	file, err := openRotating(LogPath(dataDir), opts.MaxBytes, opts.Keep)
+	file, err := openRotating(discovery.LogPath(dataDir), opts.MaxBytes, opts.Keep)
 	if err != nil {
 		return nil, fmt.Errorf("engine: open log: %w", err)
 	}

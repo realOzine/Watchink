@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"watchink/internal/app"
-	"watchink/internal/engine"
 	"watchink/internal/infra/config"
+	"watchink/internal/transport/discovery"
 	"watchink/internal/version"
 )
 
@@ -106,7 +106,7 @@ func Connect(ctx context.Context, opts app.ConnectOptions) (app.Remote, error) {
 				return nil, ctx.Err()
 			}
 			return nil, app.E(app.CodeEngineUnavailable, "Engine 在 %s 内没有就绪", timeout).
-				WithHint("请查看日志：" + engine.LogPath(dataDir))
+				WithHint("请查看日志：" + discovery.LogPath(dataDir))
 		case <-time.After(pollInterval):
 		}
 	}
@@ -116,7 +116,7 @@ func Connect(ctx context.Context, opts app.ConnectOptions) (app.Remote, error) {
 // refused connection or a rejected token (the port now belongs to another
 // engine) all mean "no engine reachable".
 func probe(ctx context.Context, dataDir, requester string) (*Client, *app.EngineInfo) {
-	d, err := engine.ReadDiscovery(dataDir)
+	d, err := discovery.Read(dataDir)
 	if err != nil {
 		return nil, nil
 	}
@@ -143,14 +143,14 @@ func spawn(dataDir string) error {
 	args := []string{"engine", "run", "--data-dir", dataDir}
 	if err := Spawner(exe, args, os.Environ()); err != nil {
 		return app.E(app.CodeEngineUnavailable, "无法启动 Engine：%v", err).
-			WithHint("请查看日志：" + engine.LogPath(dataDir)).WithCause(err)
+			WithHint("请查看日志：" + discovery.LogPath(dataDir)).WithCause(err)
 	}
 	return nil
 }
 
 // waitStopped waits until no process holds the engine lock.
 func waitStopped(ctx context.Context, dataDir string) error {
-	for engine.IsRunning(dataDir) {
+	for discovery.IsRunning(dataDir) {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()

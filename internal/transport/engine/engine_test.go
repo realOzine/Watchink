@@ -16,10 +16,11 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"watchink/internal/transport/discovery"
 
 	"watchink/internal/app"
-	"watchink/internal/engine"
 	"watchink/internal/transport/api/apitest"
+	"watchink/internal/transport/engine"
 )
 
 // running is an in-process engine under test.
@@ -27,7 +28,7 @@ type running struct {
 	t      *testing.T
 	dir    string
 	fake   *apitest.Fake
-	disc   engine.Discovery
+	disc   discovery.Info
 	cancel context.CancelFunc
 	done   chan error
 
@@ -51,13 +52,13 @@ func (r *running) order() string {
 func start(t *testing.T, dir string, mutate func(o *engine.Options, b *engine.Built)) *running {
 	t.Helper()
 	r := &running{t: t, dir: dir, fake: apitest.New(), done: make(chan error, 1)}
-	ready := make(chan engine.Discovery, 1)
+	ready := make(chan discovery.Info, 1)
 	built := &engine.Built{
 		Service:    r.fake,
 		IdleExit:   -1,
 		SetBaseURL: func(u string) { r.step("base_url") },
 		Start: func(context.Context) error {
-			if _, err := os.Stat(engine.DiscoveryPath(dir)); err != nil {
+			if _, err := os.Stat(discovery.Path(dir)); err != nil {
 				t.Errorf("Start called before engine.json exists: %v", err)
 			}
 			r.step("start")
@@ -67,7 +68,7 @@ func start(t *testing.T, dir string, mutate func(o *engine.Options, b *engine.Bu
 			if stopped, _ := r.fake.Stopped(); !stopped {
 				t.Error("Close called before Service.Stop")
 			}
-			if _, err := os.Stat(engine.DiscoveryPath(dir)); err != nil {
+			if _, err := os.Stat(discovery.Path(dir)); err != nil {
 				t.Errorf("engine.json removed before Close: %v", err)
 			}
 			r.step("close")
@@ -80,10 +81,10 @@ func start(t *testing.T, dir string, mutate func(o *engine.Options, b *engine.Bu
 		Version:   "9.9.9",
 		BuildID:   "build-A",
 		NoSignals: true,
-		OnReady:   func(d engine.Discovery) { ready <- d },
+		OnReady:   func(d discovery.Info) { ready <- d },
 	}
 	opts.Build = func(_ context.Context, env engine.Env) (*engine.Built, error) {
-		if !engine.IsRunning(dir) {
+		if !discovery.IsRunning(dir) {
 			t.Error("Build called without the lock held")
 		}
 		if env.DataDir != dir || env.Logger == nil || env.AddSecret == nil {
@@ -156,7 +157,7 @@ func TestRunLifecycleAndDiscovery(t *testing.T) {
 
 	// engine.json: exactly the fields, mode 0600 (Windows has no
 	// permission bits; the file is protected by the profile directory's ACL).
-	raw, err := os.ReadFile(engine.DiscoveryPath(dir))
+	raw, err := os.ReadFile(discovery.Path(dir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,16 +174,16 @@ func TestRunLifecycleAndDiscovery(t *testing.T) {
 	if len(fields) != 0 {
 		t.Errorf("engine.json has extra fields: %v", fields)
 	}
-	st, _ := os.Stat(engine.DiscoveryPath(dir))
+	st, _ := os.Stat(discovery.Path(dir))
 	if runtime.GOOS != "windows" && st.Mode().Perm() != 0o600 {
 		t.Errorf("engine.json mode = %v", st.Mode().Perm())
 	}
-	d, err := engine.ReadDiscovery(dir)
+	d, err := discovery.Read(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if *d != r.disc {
-		t.Fatalf("ReadDiscovery = %+v, OnReady got %+v", d, r.disc)
+		t.Fatalf("discovery.Read = %+v, OnReady got %+v", d, r.disc)
 	}
 	tok, err := base64.RawURLEncoding.DecodeString(d.Token)
 	if err != nil || len(tok) != 32 {
@@ -193,14 +194,14 @@ func TestRunLifecycleAndDiscovery(t *testing.T) {
 		t.Fatalf("started_at = %q", d.StartedAt)
 	}
 	if d.PID != os.Getpid() || d.Version != "9.9.9" || d.BuildID != "build-A" || d.API != 1 ||
-		d.Mode != engine.ModeBackground || !strings.HasPrefix(d.BaseURL, "http://127.0.0.1:") {
+		d.Mode != discovery.ModeBackground || !strings.HasPrefix(d.BaseURL, "http://127.0.0.1:") {
 		t.Fatalf("discovery = %+v", d)
 	}
-	if leftovers, _ := os.ReadDir(engine.RunDir(dir)); len(leftovers) != 2 {
+	if leftovers, _ := os.ReadDir(discovery.RunDir(dir)); len(leftovers) != 2 {
 		t.Fatalf("run dir holds %d entries, want engine.lock + engine.json", len(leftovers))
 	}
-	if !engine.IsRunning(dir) {
-		t.Fatal("IsRunning = false while the engine runs")
+	if !discovery.IsRunning(dir) {
+		t.Fatal("discovery.IsRunning = false while the engine runs")
 	}
 
 	// Health is open; the engine endpoint overlays the process fields.
@@ -242,17 +243,17 @@ func TestRunLifecycleAndDiscovery(t *testing.T) {
 	if stopped, force := r.fake.Stopped(); !stopped || len(force) != 1 || force[0] {
 		t.Fatalf("Stop calls = %v %v", stopped, force)
 	}
-	if _, err := os.Stat(engine.DiscoveryPath(dir)); !errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(discovery.Path(dir)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("engine.json still present: %v", err)
 	}
-	if _, err := engine.ReadDiscovery(dir); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("ReadDiscovery after stop: %v", err)
+	if _, err := discovery.Read(dir); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("discovery.Read after stop: %v", err)
 	}
-	if engine.IsRunning(dir) {
+	if discovery.IsRunning(dir) {
 		t.Fatal("lock still held after Run returned")
 	}
 	// The token never reaches the log.
-	logData, err := os.ReadFile(engine.LogPath(dir))
+	logData, err := os.ReadFile(discovery.LogPath(dir))
 	if err != nil || !bytes.Contains(logData, []byte(`"msg":"engine ready"`)) {
 		t.Fatalf("log: %v\n%s", err, logData)
 	}
@@ -263,8 +264,8 @@ func TestRunLifecycleAndDiscovery(t *testing.T) {
 
 func TestLockExclusivity(t *testing.T) {
 	dir := t.TempDir()
-	if engine.IsRunning(dir) {
-		t.Fatal("IsRunning on an empty dir")
+	if discovery.IsRunning(dir) {
+		t.Fatal("discovery.IsRunning on an empty dir")
 	}
 	r := start(t, dir, nil)
 
@@ -276,11 +277,11 @@ func TestLockExclusivity(t *testing.T) {
 			return &engine.Built{Service: apitest.New()}, nil
 		},
 	})
-	if !errors.Is(err, engine.ErrAlreadyRunning) || built {
+	if !errors.Is(err, discovery.ErrAlreadyRunning) || built {
 		t.Fatalf("second Run: err=%v built=%v", err, built)
 	}
 	// The loser must not disturb the winner's discovery file.
-	if d, err := engine.ReadDiscovery(dir); err != nil || *d != r.disc {
+	if d, err := discovery.Read(dir); err != nil || *d != r.disc {
 		t.Fatalf("discovery after losing start: %+v %v", d, err)
 	}
 	if resp, _ := r.request("GET", "/api/v1/engine", ""); resp.StatusCode != 200 {
@@ -298,33 +299,33 @@ func TestLockExclusivity(t *testing.T) {
 
 func TestStaleDiscoveryIsIgnoredAndReplaced(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(engine.RunDir(dir), 0o700); err != nil {
+	if err := os.MkdirAll(discovery.RunDir(dir), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	stale := `{"pid":1,"base_url":"http://127.0.0.1:1","token":"stale","version":"0","build_id":"old","api":1,"mode":"background","started_at":"2020-01-01T00:00:00Z"}`
-	if err := os.WriteFile(engine.DiscoveryPath(dir), []byte(stale), 0o644); err != nil {
+	if err := os.WriteFile(discovery.Path(dir), []byte(stale), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	// Liveness is the lock only: a discovery file alone means nothing.
-	if engine.IsRunning(dir) {
-		t.Fatal("IsRunning = true with only a stale engine.json")
+	if discovery.IsRunning(dir) {
+		t.Fatal("discovery.IsRunning = true with only a stale engine.json")
 	}
 	r := start(t, dir, nil)
-	d, err := engine.ReadDiscovery(dir)
+	d, err := discovery.Read(dir)
 	if err != nil || d.Token == "stale" || *d != r.disc {
 		t.Fatalf("stale discovery not replaced: %+v %v", d, err)
 	}
-	if st, _ := os.Stat(engine.DiscoveryPath(dir)); runtime.GOOS != "windows" && st.Mode().Perm() != 0o600 {
+	if st, _ := os.Stat(discovery.Path(dir)); runtime.GOOS != "windows" && st.Mode().Perm() != 0o600 {
 		t.Fatalf("mode = %v", st.Mode().Perm())
 	}
 
 	// Unreadable files are errors, not panics.
 	bad := t.TempDir()
-	_ = os.MkdirAll(engine.RunDir(bad), 0o700)
+	_ = os.MkdirAll(discovery.RunDir(bad), 0o700)
 	for _, content := range []string{"{", `{"pid":1}`} {
-		_ = os.WriteFile(engine.DiscoveryPath(bad), []byte(content), 0o600)
-		if _, err := engine.ReadDiscovery(bad); err == nil {
-			t.Fatalf("ReadDiscovery accepted %q", content)
+		_ = os.WriteFile(discovery.Path(bad), []byte(content), 0o600)
+		if _, err := discovery.Read(bad); err == nil {
+			t.Fatalf("discovery.Read accepted %q", content)
 		}
 	}
 }
@@ -362,10 +363,10 @@ func TestShutdownEndpoint(t *testing.T) {
 		if stopped, kinds := r.fake.Stopped(); !stopped || len(kinds) != 1 || kinds[0] != force {
 			t.Fatalf("Stop(force=%v) calls = %v", force, kinds)
 		}
-		if engine.IsRunning(dir) {
+		if discovery.IsRunning(dir) {
 			t.Fatal("lock held after shutdown")
 		}
-		if _, err := os.Stat(engine.DiscoveryPath(dir)); !errors.Is(err, os.ErrNotExist) {
+		if _, err := os.Stat(discovery.Path(dir)); !errors.Is(err, os.ErrNotExist) {
 			t.Fatal("engine.json left behind")
 		}
 		// The port is closed.
@@ -413,10 +414,10 @@ func TestIdleExitFires(t *testing.T) {
 	if stopped, kinds := r.fake.Stopped(); !stopped || kinds[0] {
 		t.Fatalf("idle exit must stop gracefully: %v", kinds)
 	}
-	if engine.IsRunning(dir) {
+	if discovery.IsRunning(dir) {
 		t.Fatal("lock held after idle exit")
 	}
-	logData, _ := os.ReadFile(engine.LogPath(dir))
+	logData, _ := os.ReadFile(discovery.LogPath(dir))
 	if !bytes.Contains(logData, []byte(`"reason":"idle"`)) {
 		t.Fatalf("log does not record the idle exit:\n%s", logData)
 	}
@@ -482,13 +483,13 @@ func TestForegroundNeverIdlesOutAndLogsToStderr(t *testing.T) {
 	dir := t.TempDir()
 	r := start(t, dir, func(o *engine.Options, b *engine.Built) {
 		idleOpts(50*time.Millisecond)(o, b)
-		o.Mode = engine.ModeForeground
+		o.Mode = discovery.ModeForeground
 		o.Stderr = &stderr
 	})
 	if _, stopped := r.wait(400 * time.Millisecond); stopped {
 		t.Fatal("foreground engine idled out")
 	}
-	if r.disc.Mode != engine.ModeForeground {
+	if r.disc.Mode != discovery.ModeForeground {
 		t.Fatalf("mode = %q", r.disc.Mode)
 	}
 	out := stderr.String()
@@ -536,8 +537,8 @@ func TestBuildAndStartFailuresReleaseEverything(t *testing.T) {
 		DataDir: dir, Port: -1, NoSignals: true,
 		Build: func(context.Context, engine.Env) (*engine.Built, error) { return nil, boom },
 	})
-	if !errors.Is(err, boom) || engine.IsRunning(dir) {
-		t.Fatalf("build failure: err=%v running=%v", err, engine.IsRunning(dir))
+	if !errors.Is(err, boom) || discovery.IsRunning(dir) {
+		t.Fatalf("build failure: err=%v running=%v", err, discovery.IsRunning(dir))
 	}
 	closed := false
 	err = engine.Run(context.Background(), engine.Options{
@@ -550,10 +551,10 @@ func TestBuildAndStartFailuresReleaseEverything(t *testing.T) {
 			}, nil
 		},
 	})
-	if !errors.Is(err, boom) || !closed || engine.IsRunning(dir) {
+	if !errors.Is(err, boom) || !closed || discovery.IsRunning(dir) {
 		t.Fatalf("start failure: err=%v closed=%v", err, closed)
 	}
-	if _, err := os.Stat(engine.DiscoveryPath(dir)); !errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(discovery.Path(dir)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("engine.json left behind after a failed start")
 	}
 	for _, o := range []engine.Options{{}, {DataDir: dir}, {DataDir: dir, Mode: "weird", Build: func(context.Context, engine.Env) (*engine.Built, error) { return nil, nil }}} {

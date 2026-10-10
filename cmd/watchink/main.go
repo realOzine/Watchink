@@ -14,12 +14,13 @@ import (
 
 	"watchink/internal/app"
 	"watchink/internal/core/service"
-	"watchink/internal/engine"
 	"watchink/internal/entry/cli"
 	"watchink/internal/entry/mcpserver"
 	"watchink/internal/infra/config"
 	"watchink/internal/infra/procx"
 	"watchink/internal/transport/client"
+	"watchink/internal/transport/discovery"
+	"watchink/internal/transport/engine"
 	"watchink/internal/version"
 	"watchink/internal/webui"
 )
@@ -40,10 +41,10 @@ func main() {
 		RunDesktop: runDesktop, // nil in nogui builds
 		WebView:    webView,    // nil in nogui builds
 		RunServe: func(ctx context.Context, o cli.ServeOptions) error {
-			return runEngine(ctx, o.DataDir, engine.ModeForeground, o.Port, o.Open)
+			return runEngine(ctx, o.DataDir, discovery.ModeForeground, o.Port, o.Open)
 		},
 		RunEngine: func(ctx context.Context, dataDir string) error {
-			return runEngine(ctx, dataDir, engine.ModeBackground, 0, false)
+			return runEngine(ctx, dataDir, discovery.ModeBackground, 0, false)
 		},
 		RunMCP: func(ctx context.Context, o cli.MCPOptions) error {
 			return mcpserver.Run(ctx, mcpserver.Options{Connect: client.Connect, DataDir: o.DataDir, NoSpawn: o.NoSpawn, Version: version.Version})
@@ -52,7 +53,7 @@ func main() {
 		OpenBrowser:     procx.OpenBrowser,
 		ResolveDataDir:  config.ResolveDataDir,
 		SetDataDir:      config.WriteLocation,
-		IsEngineRunning: engine.IsRunning,
+		IsEngineRunning: discovery.IsRunning,
 		DesktopPrereqs:  desktopPrereqs, // nil in nogui builds
 		Stdin:           os.Stdin,
 		IsTerminal: func() bool {
@@ -88,8 +89,8 @@ func runEngine(ctx context.Context, dataDir, mode string, port int, open bool) e
 				SetBaseURL: svc.SetBaseURL, Start: svc.Start, Close: svc.Close,
 			}, nil
 		},
-		OnReady: func(d engine.Discovery) {
-			if mode != engine.ModeForeground {
+		OnReady: func(d discovery.Info) {
+			if mode != discovery.ModeForeground {
 				return
 			}
 			fmt.Fprintf(os.Stderr, "Watchink Engine 已启动：%s\n", d.BaseURL)
@@ -105,8 +106,8 @@ func runEngine(ctx context.Context, dataDir, mode string, port int, open bool) e
 			}
 		},
 	})
-	if errors.Is(err, engine.ErrAlreadyRunning) {
-		if mode == engine.ModeBackground {
+	if errors.Is(err, discovery.ErrAlreadyRunning) {
+		if mode == discovery.ModeBackground {
 			// Lost the cold-start race (step 4): the winner serves.
 			return nil
 		}

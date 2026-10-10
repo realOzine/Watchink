@@ -56,7 +56,7 @@
 | 残留进程（§7.6） | `QueryFullProcessImageName` 比对路径（不区分大小写）后 `TerminateProcess`；运行着当前程序自身的进程永不终止 | 同上 |
 | 浏览器 / 资源管理器 | `rundll32 url.dll,FileProtocolHandler <url>`；`explorer.exe /select,"<路径>"`，命令行自行拼接，因为 explorer 不按通用规则解析引号 | 同上 |
 | 物理核心数 | `GetLogicalProcessorInformation` 统计 `RelationProcessorCore`，失败时退回 `runtime.NumCPU()` | `internal/capability/asr/cores_windows.go` |
-| `engine.json` | Windows 不允许替换正被其它进程打开的文件，而客户端在 Engine 启动期间每 100 ms 读一次：替换失败时短暂重试 | `internal/engine/replace_windows.go` |
+| `engine.json` | Windows 不允许替换正被其它进程打开的文件，而客户端在 Engine 启动期间每 100 ms 读一次：替换失败时短暂重试 | `internal/transport/engine/replace_windows.go` |
 | 文件权限 | Windows 没有 0600；`engine.json`、`secrets.toml`、日志依靠用户配置目录的 ACL 保护。代码照常调用 `Chmod`（在 Windows 上无害），测试里的权限断言在 Windows 上跳过 | `engine`、`config` 的测试 |
 | 工具安装 | 可执行文件名带 `.exe`：下载的工具由清单的 `bin` 指定，内嵌的 whisper-cli 按平台推导（`windows-amd64/whisper-cli.exe` 和 `whisper-cli.exe.sha256`）。`tools/bin` 下用硬链接代替符号链接（普通用户无权创建符号链接），不支持硬链接时复制。安装时的重命名在被占用时重试 2 秒，应对杀毒软件扫描刚写入的程序。`ERROR_DISK_FULL` 映射为 `DISK_FULL` | `internal/capability/tools/sys_windows.go` 等 |
 | 一个压缩包、两个工具 | BtbN 的 zip 同时包含 ffmpeg 和 ffprobe（194 MB）。第一个工具装完后把已校验的下载文件交给下一个需要它的工具，避免下载两次 | `internal/capability/tools/install.go` 的 `releasePayload` |

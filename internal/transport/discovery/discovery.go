@@ -1,8 +1,13 @@
-// Package engine owns the engine process lifecycle: the
-// single-instance lock, the discovery file, the HTTP listener, idle exit,
-// graceful shutdown and the engine log. The service itself is built by the
-// caller through Options.Build.
-package engine
+// Package discovery is how an engine and its clients find each other inside
+// one data directory, without either importing the other:
+//
+//   - <data>/run/engine.lock is held by the engine for as long as it lives;
+//     whether an engine exists is decided by this lock alone.
+//   - <data>/run/engine.json tells a client where the engine listens and
+//     which token to use.
+//
+// The engine calls AcquireLock and Write; clients call IsRunning and Read.
+package discovery
 
 import (
 	"encoding/json"
@@ -15,21 +20,22 @@ import (
 	"github.com/gofrs/flock"
 )
 
-// Run modes.
+// Run modes of an engine, recorded in Info.Mode.
 const (
 	ModeBackground = "background"
 	ModeForeground = "foreground"
 )
 
-// ErrAlreadyRunning is returned by Run when another process holds the engine
+// ErrAlreadyRunning is returned by AcquireLock (and so by engine.Run) when
+// another process holds the engine
 // lock of the data directory. A spawned `engine run` that loses the start
 // race (step 4) exits quietly on it.
 var ErrAlreadyRunning = errors.New("engine: another engine already owns this data directory")
 
-// Discovery is the content of <data>/run/engine.json. It only tells a
+// Info is the content of <data>/run/engine.json. It only tells a
 // client where the engine listens and which token to use; whether an engine
 // is alive is decided by the lock alone.
-type Discovery struct {
+type Info struct {
 	PID       int    `json:"pid"`
 	BaseURL   string `json:"base_url"`
 	Token     string `json:"token"`
@@ -46,35 +52,35 @@ func RunDir(dataDir string) string { return filepath.Join(dataDir, "run") }
 // LockPath returns <data>/run/engine.lock.
 func LockPath(dataDir string) string { return filepath.Join(RunDir(dataDir), "engine.lock") }
 
-// DiscoveryPath returns <data>/run/engine.json.
-func DiscoveryPath(dataDir string) string { return filepath.Join(RunDir(dataDir), "engine.json") }
+// Path returns <data>/run/engine.json.
+func Path(dataDir string) string { return filepath.Join(RunDir(dataDir), "engine.json") }
 
 // LogPath returns <data>/logs/engine.log.
 func LogPath(dataDir string) string { return filepath.Join(dataDir, "logs", "engine.log") }
 
-// ReadDiscovery reads engine.json. A missing file yields an error satisfying
+// Read reads engine.json. A missing file yields an error satisfying
 // errors.Is(err, os.ErrNotExist). The file may be stale: callers must still
 // reach the engine (or check IsRunning) before trusting it.
-func ReadDiscovery(dataDir string) (*Discovery, error) {
-	b, err := os.ReadFile(DiscoveryPath(dataDir))
+func Read(dataDir string) (*Info, error) {
+	b, err := os.ReadFile(Path(dataDir))
 	if err != nil {
 		return nil, err
 	}
-	var d Discovery
+	var d Info
 	if err := json.Unmarshal(b, &d); err != nil {
-		return nil, fmt.Errorf("engine: parse %s: %w", DiscoveryPath(dataDir), err)
+		return nil, fmt.Errorf("engine: parse %s: %w", Path(dataDir), err)
 	}
 	if d.BaseURL == "" || d.Token == "" {
-		return nil, fmt.Errorf("engine: %s is incomplete", DiscoveryPath(dataDir))
+		return nil, fmt.Errorf("engine: %s is incomplete", Path(dataDir))
 	}
 	return &d, nil
 }
 
-// writeDiscovery writes engine.json atomically with mode 0600: the
+// Write writes engine.json atomically with mode 0600: the
 // file holds the engine token. Windows has no permission bits; there the file
 // is private because the data directory lives in the user's profile, whose
 // ACL only admits that user.
-func writeDiscovery(dataDir string, d Discovery) error {
+func Write(dataDir string, d Info) error {
 	b, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
 		return err
@@ -104,7 +110,7 @@ func writeDiscovery(dataDir string, d Discovery) error {
 		os.Remove(name)
 		return err
 	}
-	if err := replaceFile(name, DiscoveryPath(dataDir)); err != nil {
+	if err := replaceFile(name, Path(dataDir)); err != nil {
 		os.Remove(name)
 		return err
 	}
@@ -113,7 +119,7 @@ func writeDiscovery(dataDir string, d Discovery) error {
 
 // IsRunning reports whether an engine currently holds the lock of dataDir.
 // It probes with a try-lock that is released at once, so it never keeps an
-// engine from starting for longer than an instant (see acquireLock).
+// engine from starting for longer than an instant (see AcquireLock).
 func IsRunning(dataDir string) bool {
 	path := LockPath(dataDir)
 	if _, err := os.Stat(path); err != nil {
@@ -142,8 +148,8 @@ const (
 	lockRetryDelay = 15 * time.Millisecond
 )
 
-// acquireLock takes the exclusive engine lock, creating <data>/run.
-func acquireLock(dataDir string) (*flock.Flock, error) {
+// AcquireLock takes the exclusive engine lock, creating <data>/run.
+func AcquireLock(dataDir string) (*flock.Flock, error) {
 	if err := os.MkdirAll(RunDir(dataDir), 0o700); err != nil {
 		return nil, fmt.Errorf("engine: create run dir: %w", err)
 	}

@@ -52,8 +52,7 @@ desktop_nogui.go   不带标签时编译：没有窗口，同名变量为空
 internal/
 ├─ app/          契约：接口和数据结构
 ├─ entry/        入口：cli、mcpserver、desktop
-├─ transport/    传输：client、api
-├─ engine/       Engine 进程的生命周期
+├─ transport/    传输：client、api、engine、discovery
 ├─ core/         核心：service、jobs、pipeline、events
 ├─ capability/   能力库：notes、llm、media、asr、tools
 ├─ infra/        底层：store、procx、config、sysreq
@@ -107,7 +106,9 @@ desktop/             桌面外壳（Wails v2），仅在 desktop 构建标签下
 
 #### `internal/transport/`：传输层
 
-入口和 Engine 之间的那条 HTTP 通道的两端。
+入口和 Engine 之间的那条 HTTP 通道：客户端一端、服务端一端、把服务端跑起来的 Engine 进程，以及两端互相找到对方的办法。
+
+包内的依赖是单向的：`client` 和 `engine` 都依赖 `api` 和 `discovery`，彼此不引用。
 
 ```text
 client/              Engine 的 HTTP 客户端，实现 app.Remote
@@ -122,17 +123,13 @@ api/                 Engine 的 HTTP 服务端：只做传输，不含业务逻�
 ├─ events.go           事件流（SSE 格式）、心跳、断线回放
 ├─ spa.go              把内嵌的前端发给浏览器
 └─ apitest/fake.go     测试用的假 Local
-```
 
-#### `internal/engine/`：Engine 进程
-
-Engine 进程自身的生命周期：启动、被发现、停止。不含业务。
-
-```text
-engine/              Engine 进程的生命周期
+engine/              Engine 进程的生命周期：把 api 和 service 跑起来
 ├─ run.go              启动顺序：拿锁 → 建日志 → 建 service → 监听 → 等停止
-├─ discovery.go        engine.lock 和 engine.json：谁是 Engine、怎么找到它
-├─ logger.go           日志：JSON 行、按大小轮转、密钥脱敏
+└─ logger.go           日志：JSON 行、按大小轮转、密钥脱敏
+
+discovery/           Engine 和客户端怎么找到对方（两边都依赖它，互不依赖）
+├─ discovery.go        engine.lock：谁是 Engine；engine.json：地址和令牌
 └─ replace_*.go        原子替换文件（Windows 上被读取时要重试）
 ```
 
@@ -399,8 +396,8 @@ spikes/           各平台的验证记录
 
 | 规则 | 实现位置 |
 | --- | --- |
-| 同一数据目录只有一个 Engine：存活期间持有 `<data>/run/engine.lock` | `engine/discovery.go` |
-| 地址和令牌写在 `<data>/run/engine.json`（0600）；判断存活只看锁，这个文件只用来找地址 | `engine/discovery.go` |
+| 同一数据目录只有一个 Engine：存活期间持有 `<data>/run/engine.lock` | `transport/discovery` |
+| 地址和令牌写在 `<data>/run/engine.json`（0600）；判断存活只看锁，这个文件只用来找地址 | `transport/discovery` |
 | 客户端连不上就自己拉起一个分离的 Engine；并发拉起时只有一个拿到锁，其余立即退出 | `client/connect.go` |
 | `build_id` 不同且 Engine 空闲时，客户端让它退出并换成新的 | `client/connect.go` |
 | 后台 Engine 空闲（无任务、无事件流订阅者、一段时间无请求）后自动退出 | `engine/run.go` 的 `isIdle` |
@@ -420,9 +417,8 @@ entry/        cli · mcpserver · desktop      入口：只认识 app 里的接�
    │
    ▼
 transport/    client ──HTTP──▶ api           传输：client 实现 app.Remote，api 服务 app.Local
-   │                            │
-   │          engine/           │            Engine 进程：锁、发现文件、监听、日志、空闲退出
-   │                            ▼
+   │          engine（进程生命周期） · discovery（锁和发现文件，两端共用）
+   ▼
 core/         service · jobs · pipeline · events   核心：用例、调度、处理阶段、事件
    │
    ▼
@@ -434,7 +430,7 @@ infra/        store · procx · config · sysreq      底层：数据库、子�
 app/          契约：不依赖任何内部包，以上每一层都可以依赖它
 ```
 
-`engine` 夹在传输层中间：它启动 `api`，而 `client` 要读它写下的发现文件，所以它单独一层。
+传输层内部也是单向的：`client` 和 `engine` 各自依赖 `api` 与 `discovery`，互不引用。客户端不需要知道 Engine 进程怎么启动，只需要知道去哪里找它。
 
 规则靠 import 关系自然成立，目前没有工具强制检查，改代码时要守住：
 
@@ -694,7 +690,7 @@ go run ./internal/bench/cmd/loadtest                    # 并发 HTTP 压测
 5. `internal/core/pipeline/pipeline.go`，然后任选一个 `stage_*.go`（建议 `stage_transcribe.go`）——阶段的统一写法。
 6. `internal/core/jobs/jobs.go` 的类型定义，再看 `scheduler.go` 的 `schedule` → `advance` → `startStage` → `stageDone`。
 7. `internal/capability/notes/map.go`、`reduce.go`、`render.go`——笔记和引用是怎么来的。
-8. `internal/engine/run.go` 的 `Run` 与 `internal/transport/client/connect.go` 的 `Connect`——进程怎么互相找到。
+8. `internal/transport/engine/run.go` 的 `Run` 与 `internal/transport/client/connect.go` 的 `Connect`——进程怎么互相找到。
 9. 需要时再看 `api/routes.go`、`cli/`、`mcpserver/`、`desktop/`：它们都很薄。
 
 ## 17. 常见改动去哪里做

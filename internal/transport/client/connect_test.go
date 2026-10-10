@@ -12,8 +12,9 @@ import (
 	"time"
 
 	"watchink/internal/app"
-	"watchink/internal/engine"
 	"watchink/internal/transport/api/apitest"
+	"watchink/internal/transport/discovery"
+	"watchink/internal/transport/engine"
 )
 
 // farm replaces the Spawner with one that runs engines in this process, the
@@ -67,7 +68,7 @@ func (f *farm) spawn(exe string, args []string, env []string) error {
 }
 
 // run starts one engine process stand-in and returns immediately.
-func (f *farm) run(dataDir, build string, ready chan<- engine.Discovery) {
+func (f *farm) run(dataDir, build string, ready chan<- discovery.Info) {
 	ctx, cancel := context.WithCancel(context.Background())
 	f.mu.Lock()
 	f.cancels = append(f.cancels, cancel)
@@ -78,7 +79,7 @@ func (f *farm) run(dataDir, build string, ready chan<- engine.Discovery) {
 		defer f.wg.Done()
 		err := engine.Run(ctx, engine.Options{
 			DataDir: dataDir, Port: -1, Version: "t", BuildID: build, NoSignals: true,
-			OnReady: func(d engine.Discovery) {
+			OnReady: func(d discovery.Info) {
 				if ready != nil {
 					ready <- d
 				}
@@ -96,7 +97,7 @@ func (f *farm) run(dataDir, build string, ready chan<- engine.Discovery) {
 			},
 		})
 		switch {
-		case errors.Is(err, engine.ErrAlreadyRunning):
+		case errors.Is(err, discovery.ErrAlreadyRunning):
 			f.mu.Lock()
 			f.lost++
 			f.mu.Unlock()
@@ -107,9 +108,9 @@ func (f *farm) run(dataDir, build string, ready chan<- engine.Discovery) {
 }
 
 // startExisting runs an engine of the given build and waits until it serves.
-func (f *farm) startExisting(dataDir, build string) (engine.Discovery, *apitest.Fake) {
+func (f *farm) startExisting(dataDir, build string) (discovery.Info, *apitest.Fake) {
 	f.t.Helper()
-	ready := make(chan engine.Discovery, 1)
+	ready := make(chan discovery.Info, 1)
 	f.run(dataDir, build, ready)
 	select {
 	case d := <-ready:
@@ -119,7 +120,7 @@ func (f *farm) startExisting(dataDir, build string) (engine.Discovery, *apitest.
 	case <-time.After(10 * time.Second):
 		f.t.Fatal("existing engine not ready")
 	}
-	return engine.Discovery{}, nil
+	return discovery.Info{}, nil
 }
 
 func (f *farm) stopAll() {
@@ -154,12 +155,12 @@ func TestConnectColdStartSpawnsEngine(t *testing.T) {
 	if f.lastExe != exe || f.lastArgs[3] != dir || f.lastEnv != len(os.Environ()) {
 		t.Fatalf("spawned %q %v with %d env vars", f.lastExe, f.lastArgs, f.lastEnv)
 	}
-	d, err := engine.ReadDiscovery(dir)
+	d, err := discovery.Read(dir)
 	if err != nil || remote.BaseURL() != d.BaseURL {
 		t.Fatalf("BaseURL %q vs discovery %+v (%v)", remote.BaseURL(), d, err)
 	}
 	info, err := remote.EngineInfo(ctxT(t))
-	if err != nil || info.BuildID != "b1" || info.PID != os.Getpid() || info.Mode != engine.ModeBackground {
+	if err != nil || info.BuildID != "b1" || info.PID != os.Getpid() || info.Mode != discovery.ModeBackground {
 		t.Fatalf("EngineInfo = %+v %v", info, err)
 	}
 	// The requester is stamped on imports.
@@ -251,7 +252,7 @@ func TestConcurrentColdStartsConvergeOnOneEngine(t *testing.T) {
 			time.Sleep(10 * time.Millisecond)
 			_, _, lost = f.counts()
 		}
-		if _, built, _ = f.counts(); built != 1 || !engine.IsRunning(dir) {
+		if _, built, _ = f.counts(); built != 1 || !discovery.IsRunning(dir) {
 			t.Fatalf("round %d: built=%d after the losers exited", round, built)
 		}
 		f.stopAll()
@@ -270,11 +271,11 @@ func TestConnectIgnoresStaleDiscovery(t *testing.T) {
 
 	for name, baseURL := range map[string]string{"closed port": "http://" + addr, "foreign engine": other.BaseURL} {
 		dir := t.TempDir()
-		if err := os.MkdirAll(engine.RunDir(dir), 0o700); err != nil {
+		if err := os.MkdirAll(discovery.RunDir(dir), 0o700); err != nil {
 			t.Fatal(err)
 		}
 		stale := `{"pid":999999,"base_url":"` + baseURL + `","token":"stale-token","version":"0","build_id":"b1","api":1,"mode":"background","started_at":"2020-01-01T00:00:00Z"}`
-		if err := os.WriteFile(engine.DiscoveryPath(dir), []byte(stale), 0o600); err != nil {
+		if err := os.WriteFile(discovery.Path(dir), []byte(stale), 0o600); err != nil {
 			t.Fatal(err)
 		}
 		// Without spawning, the stale file must not be mistaken for an engine.
@@ -366,7 +367,7 @@ func TestBuildMismatchIdleEngineIsReplaced(t *testing.T) {
 	if err != nil || info.BuildID != "new-build" {
 		t.Fatalf("connected engine: %+v %v", info, err)
 	}
-	d, _ := engine.ReadDiscovery(dir)
+	d, _ := discovery.Read(dir)
 	if d.Token == oldDisc.Token || d.BuildID != "new-build" {
 		t.Fatalf("discovery still describes the old engine: %+v", d)
 	}
@@ -402,7 +403,7 @@ func TestBuildMismatchBusyEngineIsKept(t *testing.T) {
 	if spawns, built, _ := f.counts(); spawns != 0 || built != 1 {
 		t.Fatalf("spawns=%d built=%d", spawns, built)
 	}
-	if d, err := engine.ReadDiscovery(dir); err != nil || *d != oldDisc || !engine.IsRunning(dir) {
+	if d, err := discovery.Read(dir); err != nil || *d != oldDisc || !discovery.IsRunning(dir) {
 		t.Fatalf("old engine gone: %+v %v", d, err)
 	}
 

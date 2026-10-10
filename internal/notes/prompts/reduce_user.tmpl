@@ -1,0 +1,30 @@
+[watchink:task={{.Task}}]
+视频标题：{{.Title}}
+视频时长：{{.Duration}}
+{{- if .Part}}
+当前部分：{{.Part}}
+{{- end}}
+
+各分块的摘要：
+<<<SUMMARIES
+{{- range .Summaries}}
+{{.}}
+{{- end}}
+SUMMARIES>>>
+
+{{if .Grouped}}这一部分{{else}}全部{{end}}的要点（每行格式：编号 [时间] 标题：说明）：
+<<<POINTS
+{{- range .Points}}
+{{.}}
+{{- end}}
+POINTS>>>
+
+请输出 JSON，字段要求如下：
+{{- if not .Grouped}}
+- title：笔记标题，简洁准确，不超过 30 字。
+- overview：text 为 200–400 字的概览，说明这节课讲了什么、按什么思路展开；point_ids 列出 2–6 个最能支撑概览的要点编号。
+{{- end}}
+- sections：按讲述顺序划分的章节，通常每 5–15 分钟一个。每个章节包含 heading（不超过 20 字的章节标题）、summary（1–3 句摘要）和 point_ids（属于该章节的要点编号，按时间顺序）。每个要点都必须放进且只放进一个章节，不要遗漏任何编号。
+{{- if not .Grouped}}
+- key_takeaways：3–7 条最值得记住的结论。每条包含 text（一句话）和 point_ids（1–3 个支撑它的要点编号）。
+{{- end}}

@@ -1,0 +1,9 @@
+# Text files are LF in the repository and in every checkout. Git for Windows
+# would otherwise check them out with CRLF, which breaks the shell scripts
+# under Git Bash, the golden files compared byte for byte by the tests, and
+# the templates and SQL embedded into the binary.
+* text=auto eol=lf
+
+*.png  binary
+*.ico  binary
+*.icns binary

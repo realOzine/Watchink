@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Template for Watchink.app/Contents/Info.plist. scripts/build-macos.sh
+  substitutes:
+    __SHORT_VERSION__  numeric version, e.g. 0.1.0
+    __VERSION__        full version, e.g. 0.1.0-dev
+    __BUILD_ID__       <short commit>-<UTC date>
+-->
+<plist version="1.0">
+<dict>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>Watchink</string>
+    <key>CFBundleDisplayName</key>
+    <string>Watchink</string>
+    <key>CFBundleExecutable</key>
+    <string>Watchink</string>
+    <key>CFBundleIdentifier</key>
+    <string>app.watchink.desktop</string>
+    <key>CFBundleShortVersionString</key>
+    <string>__SHORT_VERSION__</string>
+    <key>CFBundleVersion</key>
+    <string>__SHORT_VERSION__</string>
+    <key>CFBundleGetInfoString</key>
+    <string>Watchink __VERSION__ (__BUILD_ID__)</string>
+    <key>CFBundleIconFile</key>
+    <string>Watchink</string>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>zh_CN</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.education</string>
+    <!-- Matches the deployment target of the build (the Go toolchain's floor). -->
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSSupportsAutomaticGraphicsSwitching</key>
+    <true/>
+    <!--
+      D-04 / S-04: the page is served from wails://wails and calls the engine
+      at http://127.0.0.1:<port>. Only loopback / local-network cleartext is
+      allowed; arbitrary http loads stay blocked.
+    -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+    </dict>
+</dict>
+</plist>

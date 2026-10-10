@@ -1,0 +1,389 @@
+# Windows amd64: tests, release build and smoke checks (docs/v0.md §16.2).
+#
+# The Windows port is developed on macOS, where its code can only be compiled.
+# This workflow is where it actually runs, so every step is a real check:
+#
+#   test    go vet + go test on Windows, including the Job Object tests of
+#           internal/procx and the desktop shell's unit tests
+#   build   whisper-cli (MSVC, static runtime) -> transcription smoke with
+#           non-ASCII paths -> release zip -> S-02 criteria that can be
+#           automated (docs/v0.md §16.5, docs/spikes/v0-windows.md)
+#   e2e     the released zip processes a real audio file end to end with
+#           downloaded FFmpeg, the embedded whisper-cli and a fake LLM
+#
+# Not covered here, and still to be done by hand on Windows 11: looking at the
+# window, the native dialogs, a real MCP client, SmartScreen / Defender on a
+# downloaded zip, a YouTube / Bilibili download.
+name: windows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      # Golden files, embedded templates and shell scripts must keep their LF
+      # endings (.gitattributes says the same; this covers older git configs).
+      - name: Keep LF line endings
+        run: git config --global core.autocrlf false && git config --global core.eol lf
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: go vet
+        run: |
+          go vet ./...
+          CGO_ENABLED=0 go vet -tags nogui ./...
+          CGO_ENABLED=0 go vet -tags desktop ./...
+      - name: go build (headless)
+        run: CGO_ENABLED=0 go build -tags nogui ./...
+      - name: go test
+        run: go test ./...
+      - name: go test (desktop shell)
+        if: ${{ !cancelled() }}
+        run: CGO_ENABLED=0 go test -tags desktop ./internal/desktop/
+
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - name: Keep LF line endings
+        run: git config --global core.autocrlf false && git config --global core.eol lf
+      # An isolated data directory for the smoke steps; the engine started by
+      # the first of them serves the rest.
+      - name: Isolated data directory
+        run: |
+          echo "WATCHINK_DATA_DIR=$RUNNER_TEMP\\wk-smoke\\data" >> "$GITHUB_ENV"
+          echo "WATCHINK_CONFIG_DIR=$RUNNER_TEMP\\wk-smoke\\cfg" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Enable corepack
+        run: corepack enable
+
+      # --- whisper-cli (S-06) ------------------------------------------------
+      - name: Cache whisper-cli
+        id: whisper-cache
+        uses: actions/cache@v4
+        with:
+          path: internal/tools/embedded/bin/windows-amd64
+          key: whisper-windows-amd64-${{ hashFiles('third_party/whisper/VERSION', 'third_party/whisper/build.sh', 'third_party/whisper/whisper-cli.manifest') }}
+      - name: Build whisper-cli
+        if: steps.whisper-cache.outputs.cache-hit != 'true'
+        run: bash third_party/whisper/build.sh windows amd64
+      - name: whisper-cli smoke (real transcription, non-ASCII paths)
+        run: |
+          set -euxo pipefail
+          . third_party/whisper/VERSION
+          bin="$PWD/internal/tools/embedded/bin/windows-amd64/whisper-cli.exe"
+          [ "$(sha256sum "$bin" | awk '{print $1}')" = "$(awk '{print $1}' "$bin.sha256")" ]
+          # The model, the audio and the output all sit under a directory
+          # whose name the runner's system code page cannot represent: this
+          # only works because of the UTF-8 manifest embedded by build.sh.
+          # A POSIX-style path: with a backslash in the file name, sha256sum
+          # escapes its output and prefixes the hash with "\".
+          tmp="$(cygpath -u "$RUNNER_TEMP")"
+          dir="$tmp/whisper 冒烟"
+          mkdir -p "$dir"
+          # Downloaded under ASCII names and then renamed: the curl that ships
+          # with Git Bash cannot write to a path outside the system code page.
+          curl -fsSL --retry 3 -o "$tmp/model.bin" \
+            https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-tiny-q5_1.bin
+          [ "$(sha256sum "$tmp/model.bin" | awk '{print $1}')" = 818710568da3ca15689e31a743197b520007872ff9576237bda97bd1b469c3d7 ]
+          curl -fsSL --retry 3 -o "$tmp/audio.wav" \
+            "https://raw.githubusercontent.com/ggml-org/whisper.cpp/$WHISPER_COMMIT/samples/jfk.wav"
+          mv "$tmp/model.bin" "$dir/模型.bin"
+          mv "$tmp/audio.wav" "$dir/音频.wav"
+          "$bin" --help > /dev/null
+          "$bin" -m "$(cygpath -w "$dir/模型.bin")" -f "$(cygpath -w "$dir/音频.wav")" \
+            -l en -t 4 -oj -of "$(cygpath -w "$dir/输出")"
+          grep -qi 'ask not what your country' "$dir/输出.json"
+          echo "transcription ok"
+
+      # --- release build -----------------------------------------------------
+      - name: Build release
+        id: release
+        run: bash scripts/build-windows.sh package
+      - name: Upload release
+        uses: actions/upload-artifact@v4
+        with:
+          name: watchink-windows-amd64
+          path: |
+            dist/Watchink-*-windows-amd64.zip
+            dist/SHA256SUMS
+          if-no-files-found: error
+      - name: Upload whisper-cli
+        uses: actions/upload-artifact@v4
+        with:
+          name: whisper-cli-windows-amd64
+          path: internal/tools/embedded/bin/windows-amd64/whisper-cli.exe*
+          if-no-files-found: error
+
+      # --- S-02 --------------------------------------------------------------
+      - name: "S-02: subsystems and resources"
+        if: ${{ !cancelled() && steps.release.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          function Get-Subsystem([string]$path) {
+            $b = [IO.File]::ReadAllBytes((Resolve-Path $path).Path)
+            $pe = [BitConverter]::ToInt32($b, 0x3c)
+            [BitConverter]::ToUInt16($b, $pe + 24 + 68)
+          }
+          $gui = Get-Subsystem 'dist\Watchink\Watchink.exe'
+          $con = Get-Subsystem 'dist\Watchink\watchink.com'
+          "Watchink.exe subsystem = $gui (2 = GUI), watchink.com subsystem = $con (3 = console)"
+          if ($gui -ne 2) { throw 'Watchink.exe is not a GUI-subsystem executable: a double-click would open a console' }
+          if ($con -ne 3) { throw 'watchink.com is not a console-subsystem executable: shells would not wait for it' }
+          foreach ($f in 'dist\Watchink\Watchink.exe', 'dist\Watchink\watchink.com') {
+            $v = (Get-Item $f).VersionInfo
+            "$f : ProductName=$($v.ProductName) ProductVersion=$($v.ProductVersion)"
+            if ($v.ProductName -ne 'Watchink') { throw "$f has no version resource: windres output was not linked" }
+          }
+          # With both files in one folder, the extension-less name must mean
+          # the console program (.COM precedes .EXE in PATHEXT).
+          $first = @(cmd /c "cd /d dist\Watchink && where watchink")[0]
+          "cmd resolves 'watchink' to $first"
+          if ($first -notlike '*watchink.com') { throw "cmd resolves 'watchink' to $first" }
+          Push-Location dist\Watchink
+          try { $ps = (Get-Command .\watchink).Source } finally { Pop-Location }
+          "PowerShell resolves '.\watchink' to $ps"
+          if ($ps -notlike '*watchink.com') { throw "PowerShell resolves '.\watchink' to $ps" }
+
+      - name: "S-02: cmd waits, output complete, pipe works"
+        if: ${{ !cancelled() && steps.release.outcome == 'success' }}
+        shell: cmd
+        run: |
+          rem The first call also cold-starts the detached engine.
+          dist\Watchink\watchink.com jobs list --json > "%RUNNER_TEMP%\jobs-cmd.json"
+          if errorlevel 1 exit /b 1
+          type "%RUNNER_TEMP%\jobs-cmd.json"
+          findstr /c:"next_cursor" "%RUNNER_TEMP%\jobs-cmd.json" || exit /b 1
+          dist\Watchink\watchink.com jobs list --json | findstr /c:"jobs" || exit /b 1
+          cd dist\Watchink
+          watchink jobs list --json | findstr /c:"jobs" || exit /b 1
+          rem The dot stands for the JSON quote, which cmd would mis-pair.
+          watchink version --json | findstr /r /c:"desktop.:true" || exit /b 1
+
+      - name: "S-02: Windows PowerShell 5.1 waits, output complete, pipe works"
+        if: ${{ !cancelled() && steps.release.outcome == 'success' }}
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch { }
+          $w = Join-Path $PWD 'dist\Watchink\watchink.com'
+          $raw = & $w jobs list --json | Out-String
+          if ($LASTEXITCODE -ne 0) { throw "jobs list exited with $LASTEXITCODE" }
+          $j = $raw | ConvertFrom-Json
+          if (-not ($j.PSObject.Properties.Name -contains 'jobs')) { throw "incomplete output: $raw" }
+          $n = (& $w jobs list --json | Select-String -SimpleMatch '"jobs"' | Measure-Object).Count
+          if ($n -lt 1) { throw 'the pipeline delivered nothing' }
+          $help = & $w --help | Out-String
+          if ($help -notmatch 'MCP stdio') { throw "help text is damaged: $help" }
+          'ok'
+
+      - name: "S-02: PowerShell 7 waits, output complete, pipe works"
+        if: ${{ !cancelled() && steps.release.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $w = Join-Path $PWD 'dist\Watchink\watchink.com'
+          $j = & $w jobs list --json | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw "jobs list exited with $LASTEXITCODE" }
+          if (-not ($j.PSObject.Properties.Name -contains 'jobs')) { throw 'incomplete output' }
+          # Chinese text survives a pipe.
+          $help = & $w --help | Out-String
+          if ($help -notmatch '桌面窗口') { throw "help text is damaged: $help" }
+          'ok'
+
+      - name: "S-02: MCP over stdio"
+        if: ${{ !cancelled() && steps.release.outcome == 'success' }}
+        run: go run scripts/mcpsmoke.go "$PWD/dist/Watchink/watchink.com"
+
+      - name: "doctor reports the WebView2 runtime"
+        if: ${{ !cancelled() && steps.release.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $w = Join-Path $PWD 'dist\Watchink\watchink.com'
+          # Exits non-zero: no tools and no LLM are configured on the runner.
+          $d = & $w doctor --json | ConvertFrom-Json
+          $d.checks | Format-Table name, status, message -Wrap
+          $desk = $d.checks | Where-Object name -eq 'desktop'
+          if ($desk.status -ne 'ok' -or -not $desk.details.webview_version) { throw "desktop check: $($desk | ConvertTo-Json -Depth 5)" }
+          # The step's result is the checks above, not doctor's exit code.
+          $global:LASTEXITCODE = 0
+
+      # S-01 as far as it can be automated: the page inside the window asks
+      # the shell for the engine (the EngineInfo binding) as soon as it loads,
+      # and the shell then starts one. An engine appearing in a fresh data
+      # directory therefore means: the GUI executable started without a
+      # console, WebView2 loaded the embedded frontend, a binding call worked
+      # and the detached spawn worked from a GUI-subsystem process.
+      - name: "S-01 / S-02: Watchink.exe opens a window without a console"
+        if: ${{ !cancelled() && steps.release.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $env:WATCHINK_DATA_DIR = Join-Path $env:RUNNER_TEMP 'wk-desktop\data'
+          $env:WATCHINK_CONFIG_DIR = Join-Path $env:RUNNER_TEMP 'wk-desktop\cfg'
+          $disc = Join-Path $env:WATCHINK_DATA_DIR 'run\engine.json'
+          $p = Start-Process -FilePath (Join-Path $PWD 'dist\Watchink\Watchink.exe') -PassThru
+          try {
+            $deadline = (Get-Date).AddSeconds(120)
+            while (-not (Test-Path $disc)) {
+              if ($p.HasExited) { throw "Watchink.exe exited with code $($p.ExitCode) before the page loaded" }
+              if ((Get-Date) -gt $deadline) { throw 'the window did not start an engine within 120 s' }
+              Start-Sleep -Milliseconds 500
+            }
+            'engine.json appeared: window, WebView2, binding and engine spawn work'
+            $children = Get-CimInstance Win32_Process -Filter "ParentProcessId = $($p.Id)"
+            $children | Format-Table ProcessId, Name -AutoSize
+            if ($children | Where-Object Name -eq 'conhost.exe') { throw 'the desktop process owns a console host' }
+            if (-not ($children | Where-Object Name -like 'msedgewebview2*')) { throw 'no WebView2 process below the desktop process' }
+          } finally {
+            if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }
+            & (Join-Path $PWD 'dist\Watchink\watchink.com') engine stop --force --no-spawn | Out-Null
+            $global:LASTEXITCODE = 0
+          }
+
+      # S-04 in a real WebView2: the page at http://wails.localhost calls a
+      # loopback server that applies the engine's CORS policy (bearer token,
+      # preflight, streamed events) and the six bindings. The program prints
+      # one PASS / FAIL line per check and exits by itself.
+      - name: "S-04: WebView2 reaches the loopback API"
+        if: ${{ !cancelled() }}
+        run: |
+          CGO_ENABLED=0 go build -tags desktop,production -o desktopsmoke.exe ./cmd/_desktopsmoke
+          ./desktopsmoke.exe -timeout 90s
+
+      - name: Stop the smoke engine
+        if: ${{ always() }}
+        shell: pwsh
+        run: |
+          $w = Join-Path $PWD 'dist\Watchink\watchink.com'
+          if (Test-Path $w) { & $w engine stop --force --no-spawn; $global:LASTEXITCODE = 0 }
+      - name: Engine logs
+        if: ${{ failure() }}
+        shell: pwsh
+        run: |
+          Get-ChildItem -Recurse -Filter engine.log (Join-Path $env:RUNNER_TEMP 'wk-smoke'), (Join-Path $env:RUNNER_TEMP 'wk-desktop') -ErrorAction SilentlyContinue |
+            ForEach-Object { "::group::$($_.FullName)"; Get-Content $_.FullName -Tail 200; '::endgroup::' }
+
+  e2e:
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Keep LF line endings
+        run: git config --global core.autocrlf false && git config --global core.eol lf
+      # A data directory with a space and non-ASCII characters, like the one
+      # of a user whose account name is not ASCII.
+      - name: Isolated data directory
+        run: echo "WK_ROOT=$RUNNER_TEMP\\wk e2e 数据" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/download-artifact@v4
+        with:
+          name: watchink-windows-amd64
+          path: dist
+      - name: Unpack the release and verify its checksum
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Get-ChildItem dist\Watchink-*-windows-amd64.zip | Select-Object -First 1
+          $want = ((Get-Content dist\SHA256SUMS | Select-Object -First 1) -split '\s+')[0]
+          $got = (Get-FileHash $zip.FullName -Algorithm SHA256).Hash.ToLower()
+          if ($got -ne $want) { throw "SHA256SUMS mismatch: $got != $want" }
+          Expand-Archive $zip.FullName -DestinationPath release
+          Get-ChildItem release\Watchink
+      - name: Build the fake LLM
+        run: go build -o fakellm.exe ./internal/llm/llmtest/cmd/fakellm
+      - name: Process an audio file end to end
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $env:WATCHINK_DATA_DIR = Join-Path $env:WK_ROOT 'data'
+          $env:WATCHINK_CONFIG_DIR = Join-Path $env:WK_ROOT 'cfg'
+          $media = Join-Path $env:WK_ROOT '视频'
+          New-Item -ItemType Directory -Force $media | Out-Null
+          $w = Join-Path $PWD 'release\Watchink\watchink.com'
+          function Invoke-Watchink { & $w @args; if ($LASTEXITCODE -ne 0) { throw "watchink $($args -join ' ') exited with $LASTEXITCODE" } }
+
+          $commit = (Select-String -Path third_party\whisper\VERSION -Pattern '^WHISPER_COMMIT=(.+)$').Matches[0].Groups[1].Value
+          $sample = Join-Path $media '肯尼迪 演讲.wav'
+          Invoke-WebRequest "https://raw.githubusercontent.com/ggml-org/whisper.cpp/$commit/samples/jfk.wav" -OutFile $sample
+
+          Start-Process -FilePath (Join-Path $PWD 'fakellm.exe') -ArgumentList '-addr', '127.0.0.1:18099' -WindowStyle Hidden
+          Start-Sleep -Seconds 2
+
+          Invoke-Watchink config set llm.base_url http://127.0.0.1:18099/v1 | Out-Null
+          Invoke-Watchink config set llm.model fake-model | Out-Null
+          'sk-fake-e2e-key-000' | & $w config set-secret llm_api_key | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'set-secret failed' }
+          # The sample is outside the user profile, the default import root.
+          Invoke-Watchink config set security.import_roots "~,$media" | Out-Null
+
+          # Downloads FFmpeg (BtbN) and the default model, extracts the
+          # embedded whisper-cli, smoke-tests each: §11.3 on Windows.
+          Invoke-Watchink tools prepare --wait
+          $tools = Invoke-Watchink tools status --json | ConvertFrom-Json
+          $tools.items | Format-Table name, status, version -AutoSize
+
+          $r = Invoke-Watchink import $sample --lang en --wait 1200 --json | ConvertFrom-Json
+          $r.job.stages | Format-Table stage, status, reused -AutoSize
+          if ($r.job.status -ne 'succeeded') { throw "job status: $($r.job.status) $($r.job.error | ConvertTo-Json -Depth 6)" }
+          $vid = $r.video_id
+
+          $note = Invoke-Watchink note get $vid --format md | Out-String
+          if ($note -notmatch 'wk://seg/') { throw "the note has no citations:`n$note" }
+          $srt = Invoke-Watchink transcript get $vid --format srt | Out-String
+          if ($srt -notmatch '(?i)country') { throw "unexpected transcript:`n$srt" }
+          Invoke-Watchink export $vid --format md --out $media | Out-Null
+          if (-not (Get-ChildItem $media -Filter *.md)) { throw 'export wrote no file' }
+
+          # Importing the same file again is answered from what exists (§7.5).
+          $again = Invoke-Watchink import $sample --json | ConvertFrom-Json
+          "second import: $($again.status)"
+          if ($again.status -ne 'already_processed') { throw "second import: $($again.status)" }
+
+          # No tool process may be left behind once the job is done.
+          Start-Sleep -Seconds 3
+          $left = Get-Process ffmpeg, ffprobe, whisper-cli -ErrorAction SilentlyContinue
+          if ($left) { throw "left-over tool processes: $($left.Name -join ', ')" }
+      - name: Stop the engine
+        if: ${{ always() }}
+        shell: pwsh
+        run: |
+          $env:WATCHINK_DATA_DIR = Join-Path $env:WK_ROOT 'data'
+          $env:WATCHINK_CONFIG_DIR = Join-Path $env:WK_ROOT 'cfg'
+          $w = Join-Path $PWD 'release\Watchink\watchink.com'
+          if (Test-Path $w) { & $w engine stop --force --no-spawn; $global:LASTEXITCODE = 0 }
+      - name: Engine log
+        if: ${{ failure() }}
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:WK_ROOT 'data\logs\engine.log'
+          if (Test-Path $log) { Get-Content $log -Tail 400 }

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  Embedded into whisper-cli.exe by build.sh (resource 1, type 24).
+
+  activeCodePage UTF-8 (Windows 10 1903 and later) makes the process code page
+  UTF-8: argv, fopen and std::ifstream then take UTF-8 paths, which is what
+  the engine passes and what whisper.cpp assumes when it opens the model.
+  Without it, any path with characters outside the system code page fails.
+-->
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+    <assemblyIdentity type="win32" name="app.watchink.whisper-cli" version="1.0.0.0"/>
+    <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
+        <security>
+            <requestedPrivileges>
+                <requestedExecutionLevel level="asInvoker" uiAccess="false"/>
+            </requestedPrivileges>
+        </security>
+    </trustInfo>
+    <application xmlns="urn:schemas-microsoft-com:asm.v3">
+        <windowsSettings>
+            <activeCodePage xmlns="http://schemas.microsoft.com/SMI/2019/WindowsSettings">UTF-8</activeCodePage>
+        </windowsSettings>
+    </application>
+</assembly>

@@ -79,95 +79,36 @@ func (m *Manager) installTool(ctx context.Context, name string, src toolSource, 
 	if report == nil {
 		report = noReport
 	}
-	t := m.manifest.Tools[name]
 	work, err := os.MkdirTemp(m.stagingDir(), name+"-*")
 	if err != nil {
 		return ioErr(err, "创建暂存目录")
 	}
 	defer os.RemoveAll(work)
 
-	// Steps 1–2: obtain the payload in staging and verify it.
-	payload := filepath.Join(work, "payload")
-	switch src.origin {
-	case sourceEmbedded:
-		f, err := m.embedded.Open(m.embeddedFile(name))
-		if err != nil {
-			_, missing := m.embeddedSHA(name)
-			if missing != nil {
-				return missing
-			}
-			return ioErr(err, "读取内嵌程序")
-		}
-		err = m.stageVerified(f, payload, src.plat.SHA256, name)
-		f.Close()
-		if err != nil {
-			return err
-		}
-	case sourceImport:
-		f, err := os.Open(src.localFile)
-		if err != nil {
-			return app.E(app.CodeInvalidArgument, "无法读取要导入的文件：%v", err).WithCause(err)
-		}
-		err = m.stageVerified(f, payload, src.plat.SHA256, filepath.Base(src.localFile))
-		f.Close()
-		if err != nil {
-			return err
-		}
-	default:
-		payload = m.partPath(name, src.plat.SHA256)
-		if err := m.download(ctx, src.plat.URL, src.plat.SHA256, src.plat.Size, payload, report); err != nil {
-			return err
-		}
-		// Removed, or handed to another tool that needs the same download.
-		defer m.releasePayload(name, src.plat.SHA256, payload)
+	// 1–2. Obtain the payload in staging and verify its sha256.
+	payload, release, err := m.obtainPayload(ctx, name, src, work, report)
+	if err != nil {
+		return err
 	}
+	defer release()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 
-	// Steps 3–4: extract and mark executable.
+	// 3–4. Extract and mark executable.
 	out := filepath.Join(work, "out")
-	if err := os.Mkdir(out, 0o755); err != nil {
-		return ioErr(err, "创建暂存目录")
-	}
-	files, err := extractFiles(payload, src.plat.Archive, src.plat.Files, out)
+	bin, files, err := extractPayload(name, src, payload, out)
 	if err != nil {
-		if e := ioErr(err, "解压 "+name); app.IsCode(e, app.CodeDiskFull) {
-			return e
-		}
-		return app.E(app.CodeToolFailed, "解压 %s 失败：%v", name, err).WithCause(err).WithDetail("tool", name)
-	}
-	bin := src.plat.Bin
-	if bin == "" {
-		bin = name
-	}
-	binFile, ok := files[bin]
-	if !ok {
-		return app.E(app.CodeToolFailed, "%s 的安装包中没有可执行文件 %s", name, bin).WithDetail("tool", name)
-	}
-	var total int64
-	for _, f := range files {
-		total += f.size
+		return err
 	}
 
-	// Step 5: smoke test, still in staging.
-	args := t.SmokeArgs
-	if len(args) == 0 {
-		args = []string{"--version"}
-	}
-	sctx, cancel := context.WithTimeout(ctx, m.smokeTimeout)
-	output, err := m.exec(sctx, filepath.Join(out, bin), args...)
-	cancel()
-	if err != nil {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		return app.E(app.CodeToolFailed, "%s 无法运行（自检失败）：%v", name, err).WithCause(err).
-			WithHint("下载的程序可能与当前系统不兼容，或被安全软件拦截。").
-			WithDetail("tool", name).WithDetail("version", src.version).WithDetail("output", tail(output, 2000))
+	// 5. Smoke test, still in staging: a program that cannot run is never
+	// installed.
+	if err := m.smokeTest(ctx, name, src.version, filepath.Join(out, bin)); err != nil {
+		return err
 	}
 
-	// Step 6: move into place.
+	// 6. Move into place.
 	final := m.versionDir(name, src.version)
 	if err := os.MkdirAll(filepath.Dir(final), 0o755); err != nil {
 		return ioErr(err, "创建工具目录")
@@ -176,8 +117,101 @@ func (m *Manager) installTool(ctx context.Context, name string, src toolSource, 
 		return ioErr(err, "安装 "+name)
 	}
 
-	// Step 7: record it.
-	err = m.updateInstalled(func(f *installedFile) {
+	// 7. Record it and point <tools>/bin at it.
+	if err := m.recordInstall(name, src, bin, files); err != nil {
+		return err
+	}
+	m.linkBin(name, src.version, bin)
+	m.log.Info("tools: installed", "tool", name, "version", src.version, "source", src.origin)
+	return nil
+}
+
+// obtainPayload puts the verified payload of a tool in staging and returns
+// its path: the embedded program, a file the user imported, or the pinned
+// download. release must be called once the payload is no longer needed.
+func (m *Manager) obtainPayload(ctx context.Context, name string, src toolSource, work string, report func(done, total int64)) (payload string, release func(), err error) {
+	release = func() {}
+	payload = filepath.Join(work, "payload")
+	switch src.origin {
+	case sourceEmbedded:
+		f, err := m.embedded.Open(m.embeddedFile(name))
+		if err != nil {
+			if _, missing := m.embeddedSHA(name); missing != nil {
+				return "", release, missing
+			}
+			return "", release, ioErr(err, "读取内嵌程序")
+		}
+		defer f.Close()
+		return payload, release, m.stageVerified(f, payload, src.plat.SHA256, name)
+	case sourceImport:
+		f, err := os.Open(src.localFile)
+		if err != nil {
+			return "", release, app.E(app.CodeInvalidArgument, "无法读取要导入的文件：%v", err).WithCause(err)
+		}
+		defer f.Close()
+		return payload, release, m.stageVerified(f, payload, src.plat.SHA256, filepath.Base(src.localFile))
+	default:
+		payload = m.partPath(name, src.plat.SHA256)
+		if err := m.download(ctx, src.plat.URL, src.plat.SHA256, src.plat.Size, payload, report); err != nil {
+			return "", release, err
+		}
+		// Removed, or handed to another tool that needs the same download.
+		return payload, func() { m.releasePayload(name, src.plat.SHA256, payload) }, nil
+	}
+}
+
+// extractPayload unpacks the files the manifest lists into out and returns
+// the name of the tool's executable among them.
+func extractPayload(name string, src toolSource, payload, out string) (bin string, files map[string]extracted, err error) {
+	if err := os.Mkdir(out, 0o755); err != nil {
+		return "", nil, ioErr(err, "创建暂存目录")
+	}
+	files, err = extractFiles(payload, src.plat.Archive, src.plat.Files, out)
+	if err != nil {
+		if e := ioErr(err, "解压 "+name); app.IsCode(e, app.CodeDiskFull) {
+			return "", nil, e
+		}
+		return "", nil, app.E(app.CodeToolFailed, "解压 %s 失败：%v", name, err).WithCause(err).WithDetail("tool", name)
+	}
+	bin = src.plat.Bin
+	if bin == "" {
+		bin = name
+	}
+	if _, ok := files[bin]; !ok {
+		return "", nil, app.E(app.CodeToolFailed, "%s 的安装包中没有可执行文件 %s", name, bin).WithDetail("tool", name)
+	}
+	return bin, files, nil
+}
+
+// smokeTest runs the staged program once (by default with --version).
+func (m *Manager) smokeTest(ctx context.Context, name, version, exe string) error {
+	args := m.manifest.Tools[name].SmokeArgs
+	if len(args) == 0 {
+		args = []string{"--version"}
+	}
+	sctx, cancel := context.WithTimeout(ctx, m.smokeTimeout)
+	output, err := m.exec(sctx, exe, args...)
+	cancel()
+	if err == nil {
+		return nil
+	}
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	return app.E(app.CodeToolFailed, "%s 无法运行（自检失败）：%v", name, err).WithCause(err).
+		WithHint("下载的程序可能与当前系统不兼容，或被安全软件拦截。").
+		WithDetail("tool", name).WithDetail("version", version).WithDetail("output", tail(output, 2000))
+}
+
+// recordInstall writes the installed version to installed.json and makes it
+// the active one.
+func (m *Manager) recordInstall(name string, src toolSource, bin string, files map[string]extracted) error {
+	var total int64
+	for _, f := range files {
+		total += f.size
+	}
+	binFile := files[bin]
+	return m.updateInstalled(func(f *installedFile) {
 		rec := f.Tools[name]
 		if rec == nil {
 			rec = &installedTool{Versions: map[string]*installedVersion{}}
@@ -189,12 +223,6 @@ func (m *Manager) installTool(ctx context.Context, name string, src toolSource, 
 		}
 		setActive(rec, src.version, src.pin)
 	})
-	if err != nil {
-		return err
-	}
-	m.linkBin(name, src.version, bin)
-	m.log.Info("tools: installed", "tool", name, "version", src.version, "source", src.origin)
-	return nil
 }
 
 // setActive switches the active version, remembering the one it replaces.

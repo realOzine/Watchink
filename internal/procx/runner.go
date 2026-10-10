@@ -160,122 +160,26 @@ func (r *Runner) Run(ctx context.Context, c Cmd) (*Result, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("procx: %s: %w", name, err)
 	}
-	exe, err := exec.LookPath(c.Path)
+
+	cmd, startExe, err := r.command(c, name)
 	if err != nil {
-		return nil, app.E(app.CodeToolMissing, "找不到外部工具 %s", name).
-			WithStage(c.Stage).WithDetail("tool", name).WithDetail("path", c.Path).WithCause(err)
+		return nil, err
 	}
-
-	startExe, argv := exe, c.Args
-	if r.opts.GuardExe != "" {
-		startExe = r.opts.GuardExe
-		argv = append([]string{GuardSubcommand, "--", exe}, c.Args...)
-	}
-	cmd := exec.Command(startExe, argv...) // argv array, never a shell
-	cmd.Dir = c.Dir
-	cmd.Env = c.Env
-	cmd.Stdin = c.Stdin
-	cmd.WaitDelay = pipeWaitDelay
-	setProcessGroup(cmd)
-
-	tail := newTailBuffer(StderrTailBytes)
-	var outLines, errLines *lineWriter
-	var outs, errs []io.Writer
-	if c.Stdout != nil {
-		outs = append(outs, c.Stdout)
-	}
-	if c.OnStdoutLine != nil {
-		outLines = &lineWriter{fn: c.OnStdoutLine}
-		outs = append(outs, outLines)
-	}
-	errs = append(errs, tail)
-	if c.Stderr != nil {
-		errs = append(errs, c.Stderr)
-	}
-	if c.OnStderrLine != nil {
-		errLines = &lineWriter{fn: c.OnStderrLine}
-		errs = append(errs, errLines)
-	}
-	if len(outs) > 0 {
-		cmd.Stdout = fanOut(outs)
-	}
-	cmd.Stderr = fanOut(errs)
-
+	out := wireOutput(cmd, c)
 	started := time.Now()
-	if err := cmd.Start(); err != nil {
-		code := app.CodeToolFailed
-		if errors.Is(err, os.ErrNotExist) {
-			code = app.CodeToolMissing
-		}
-		return nil, app.E(code, "无法启动外部工具 %s", name).
-			WithStage(c.Stage).WithDetail("tool", name).WithDetail("error", Redact(err.Error())).WithCause(err)
+	ch, err := r.start(cmd, c, name, startExe)
+	if err != nil {
+		return nil, err
 	}
-	pid := cmd.Process.Pid
-	// Platforms whose process group is a separate kernel object (the Windows
-	// Job Object) create it here; elsewhere this is a no-op.
-	if err := attachGroup(cmd); err != nil {
-		_ = cmd.Process.Kill()
-		_ = cmd.Wait()
-		return nil, app.E(app.CodeToolFailed, "无法启动外部工具 %s", name).
-			WithStage(c.Stage).WithDetail("tool", name).WithDetail("error", Redact(err.Error())).WithCause(err)
-	}
-	ch := &child{pid: pid, jobID: c.JobID}
-	r.mu.Lock()
-	r.children[pid] = ch
-	r.mu.Unlock()
-	if r.opts.OnStart != nil {
-		r.opts.OnStart(pid, startExe, c.JobID, c.Stage)
-	}
-
-	waitCh := make(chan error, 1)
-	go func() { waitCh <- cmd.Wait() }()
-
-	var waitErr error
-	cancelled := false
-	select {
-	case waitErr = <-waitCh:
-	case <-ctx.Done():
-		cancelled = true
-		termAt := time.Now()
-		_ = terminateGroup(pid)
-		timer := time.NewTimer(r.opts.TermGrace)
-		select {
-		case waitErr = <-waitCh:
-			timer.Stop()
-		case <-timer.C:
-			_ = killGroup(pid)
-			waitErr = <-waitCh
-		}
-		// The leader is gone, but descendants may still be finishing their
-		// own SIGTERM handling: give them the rest of the grace period.
-		for groupAlive(pid) && time.Since(termAt) < r.opts.TermGrace {
-			time.Sleep(20 * time.Millisecond)
-		}
-	}
-	// Whatever is left in the group (background grandchildren, or processes
-	// ignoring SIGTERM) must not outlive the stage.
-	_ = killGroup(pid)
-
-	r.mu.Lock()
-	killed := ch.killed
-	delete(r.children, pid)
-	r.mu.Unlock()
-	releaseGroup(pid)
-	if r.opts.OnExit != nil {
-		r.opts.OnExit(pid)
-	}
-	if outLines != nil {
-		outLines.flush()
-	}
-	if errLines != nil {
-		errLines.flush()
-	}
+	waitErr, cancelled := r.wait(ctx, cmd, ch.pid)
+	killed := r.forget(ch)
+	out.flush()
 
 	secrets := append(append([]string{}, r.opts.Secrets...), c.Secrets...)
 	res := &Result{
-		PID:        pid,
+		PID:        ch.pid,
 		ExitCode:   cmd.ProcessState.ExitCode(),
-		StderrTail: Redact(tail.String(), secrets...),
+		StderrTail: Redact(out.tail.String(), secrets...),
 		Duration:   time.Since(started),
 	}
 	if cancelled || ctx.Err() != nil {
@@ -300,6 +204,153 @@ func (r *Runner) Run(ctx context.Context, c Cmd) (*Result, error) {
 		e = e.WithCause(waitErr)
 	}
 	return res, e
+}
+
+// command resolves the tool and builds the process to start: the tool
+// itself, or the guard wrapping it when one is configured. startExe is the
+// program that is actually executed.
+func (r *Runner) command(c Cmd, name string) (cmd *exec.Cmd, startExe string, err error) {
+	exe, err := exec.LookPath(c.Path)
+	if err != nil {
+		return nil, "", app.E(app.CodeToolMissing, "找不到外部工具 %s", name).
+			WithStage(c.Stage).WithDetail("tool", name).WithDetail("path", c.Path).WithCause(err)
+	}
+	startExe, argv := exe, c.Args
+	if r.opts.GuardExe != "" {
+		startExe = r.opts.GuardExe
+		argv = append([]string{GuardSubcommand, "--", exe}, c.Args...)
+	}
+	cmd = exec.Command(startExe, argv...) // argv array, never a shell
+	cmd.Dir = c.Dir
+	cmd.Env = c.Env
+	cmd.Stdin = c.Stdin
+	cmd.WaitDelay = pipeWaitDelay
+	setProcessGroup(cmd)
+	return cmd, startExe, nil
+}
+
+// output is where a child's stdout and stderr go while it runs.
+type output struct {
+	tail     *tailBuffer // the end of stderr, kept for the error message
+	outLines *lineWriter
+	errLines *lineWriter
+}
+
+// flush delivers a last line that did not end with a newline.
+func (o *output) flush() {
+	if o.outLines != nil {
+		o.outLines.flush()
+	}
+	if o.errLines != nil {
+		o.errLines.flush()
+	}
+}
+
+// wireOutput connects the child's streams to the caller's writers and line
+// callbacks; stderr is always also kept in the tail buffer.
+func wireOutput(cmd *exec.Cmd, c Cmd) *output {
+	o := &output{tail: newTailBuffer(StderrTailBytes)}
+	var outs []io.Writer
+	if c.Stdout != nil {
+		outs = append(outs, c.Stdout)
+	}
+	if c.OnStdoutLine != nil {
+		o.outLines = &lineWriter{fn: c.OnStdoutLine}
+		outs = append(outs, o.outLines)
+	}
+	errs := []io.Writer{o.tail}
+	if c.Stderr != nil {
+		errs = append(errs, c.Stderr)
+	}
+	if c.OnStderrLine != nil {
+		o.errLines = &lineWriter{fn: c.OnStderrLine}
+		errs = append(errs, o.errLines)
+	}
+	if len(outs) > 0 {
+		cmd.Stdout = fanOut(outs)
+	}
+	cmd.Stderr = fanOut(errs)
+	return o
+}
+
+// start launches the process, puts it in its group and registers it so that
+// KillJob / KillAll and the OnStart hook can see it.
+func (r *Runner) start(cmd *exec.Cmd, c Cmd, name, startExe string) (*child, error) {
+	failed := func(code app.Code, err error) error {
+		return app.E(code, "无法启动外部工具 %s", name).
+			WithStage(c.Stage).WithDetail("tool", name).WithDetail("error", Redact(err.Error())).WithCause(err)
+	}
+	if err := cmd.Start(); err != nil {
+		code := app.CodeToolFailed
+		if errors.Is(err, os.ErrNotExist) {
+			code = app.CodeToolMissing
+		}
+		return nil, failed(code, err)
+	}
+	pid := cmd.Process.Pid
+	// Platforms whose process group is a separate kernel object (the Windows
+	// Job Object) create it here; elsewhere this is a no-op.
+	if err := attachGroup(cmd); err != nil {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		return nil, failed(app.CodeToolFailed, err)
+	}
+	ch := &child{pid: pid, jobID: c.JobID}
+	r.mu.Lock()
+	r.children[pid] = ch
+	r.mu.Unlock()
+	if r.opts.OnStart != nil {
+		r.opts.OnStart(pid, startExe, c.JobID, c.Stage)
+	}
+	return ch, nil
+}
+
+// wait blocks until the process exits. When ctx is cancelled first it asks
+// the whole group to terminate, escalates to a kill after the grace period,
+// and reports cancelled. In every case nothing of the group is left running
+// when it returns.
+func (r *Runner) wait(ctx context.Context, cmd *exec.Cmd, pid int) (waitErr error, cancelled bool) {
+	waitCh := make(chan error, 1)
+	go func() { waitCh <- cmd.Wait() }()
+
+	select {
+	case waitErr = <-waitCh:
+	case <-ctx.Done():
+		cancelled = true
+		termAt := time.Now()
+		_ = terminateGroup(pid)
+		timer := time.NewTimer(r.opts.TermGrace)
+		select {
+		case waitErr = <-waitCh:
+			timer.Stop()
+		case <-timer.C:
+			_ = killGroup(pid)
+			waitErr = <-waitCh
+		}
+		// The leader is gone, but descendants may still be finishing their
+		// own SIGTERM handling: give them the rest of the grace period.
+		for groupAlive(pid) && time.Since(termAt) < r.opts.TermGrace {
+			time.Sleep(20 * time.Millisecond)
+		}
+	}
+	// Whatever is left in the group (background grandchildren, or processes
+	// ignoring SIGTERM) must not outlive the stage.
+	_ = killGroup(pid)
+	return waitErr, cancelled
+}
+
+// forget unregisters a finished child and reports whether KillJob / KillAll
+// had killed it.
+func (r *Runner) forget(ch *child) (killed bool) {
+	r.mu.Lock()
+	killed = ch.killed
+	delete(r.children, ch.pid)
+	r.mu.Unlock()
+	releaseGroup(ch.pid)
+	if r.opts.OnExit != nil {
+		r.opts.OnExit(ch.pid)
+	}
+	return killed
 }
 
 // KillAll force-kills (SIGKILL) the process group of every live child. The

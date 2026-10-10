@@ -1,5 +1,8 @@
 import { useEffect, useId, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router';
+import { flushListRefresh } from '../api/events';
+import { keys } from '../api/keys';
 import { useVideos } from '../api/hooks';
 import { Page } from '../components/AppShell';
 import { ImportDialog } from '../components/ImportDialog';
@@ -22,6 +25,7 @@ export function LibraryPage() {
     return () => clearTimeout(timer);
   }, [input]);
 
+  const qc = useQueryClient();
   const q = useVideos(filter);
   const videos = q.data?.pages.flatMap((p) => p.videos ?? []) ?? [];
 
@@ -82,7 +86,7 @@ export function LibraryPage() {
         <div className={s.more}>
           <span>{t.count(videos.length)}</span>
           {q.hasNextPage && (
-            <Button disabled={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()}>
+            <Button disabled={q.isFetchingNextPage} onClick={() => void q.fetchNextPage().finally(() => flushListRefresh(qc, keys.videosAll))}>
               {q.isFetchingNextPage ? t.loadingMore : t.loadMore}
             </Button>
           )}

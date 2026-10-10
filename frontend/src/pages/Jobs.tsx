@@ -1,7 +1,9 @@
 import { useId, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router';
+import { flushListRefresh } from '../api/events';
 import { useJobAction, useJobs, useVideo } from '../api/hooks';
-import { canCancelJob, canRetryJob, isJobActive } from '../api/keys';
+import { canCancelJob, canRetryJob, isJobActive, keys } from '../api/keys';
 import type { Job } from '../api/types';
 import { Page } from '../components/AppShell';
 import { JobProgress } from '../components/JobView';
@@ -105,6 +107,7 @@ function JobCard({ job }: { job: Job }) {
 
 export function JobsPage() {
   const [status, setStatus] = useState('');
+  const qc = useQueryClient();
   const q = useJobs(status);
   const jobs = q.data?.pages.flatMap((p) => p.jobs ?? []) ?? [];
 
@@ -122,7 +125,7 @@ export function JobsPage() {
         </ul>
         {q.hasNextPage && (
           <div className={s.more}>
-            <Button disabled={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()}>
+            <Button disabled={q.isFetchingNextPage} onClick={() => void q.fetchNextPage().finally(() => flushListRefresh(qc, keys.jobsAll))}>
               {q.isFetchingNextPage ? zh.library.loadingMore : t.loadMore}
             </Button>
           </div>

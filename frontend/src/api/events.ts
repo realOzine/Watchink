@@ -7,6 +7,29 @@ import { SseParser, type SseFrame } from './sse';
 import type { Job, JobList, ToolsStatus, Video, VideoList } from './types';
 
 /**
+ * Paged lists ("videos", "jobs") that an event wanted refreshed while one of
+ * their requests was still running.
+ */
+const deferredLists = new Set<string>();
+
+/**
+ * Refreshes a paged list after an event. A plain invalidation would cancel a
+ * "load more" request that is in flight and refetch only the pages already
+ * shown, so the click would be lost whenever an event arrives at that moment,
+ * which is exactly when a job is running. So a list that is fetching is left
+ * alone and remembered; flushListRefresh picks it up afterwards.
+ */
+function refreshList(qc: QueryClient, queryKey: readonly [string]) {
+  if (qc.isFetching({ queryKey }) > 0) deferredLists.add(queryKey[0]);
+  void qc.invalidateQueries({ queryKey }, { cancelRefetch: false });
+}
+
+/** Runs the refresh that refreshList postponed; call when "load more" settles. */
+export function flushListRefresh(qc: QueryClient, queryKey: readonly [string]) {
+  if (deferredLists.delete(queryKey[0])) void qc.invalidateQueries({ queryKey }, { cancelRefetch: false });
+}
+
+/**
  * connecting: first attempt · open: live · down: dropped, retrying ·
  * stopping: the engine announced it is shutting down.
  */
@@ -72,7 +95,7 @@ export function applyJob(qc: QueryClient, job: Job): void {
     job,
     (f) => !f.status || f.status === job.status,
   );
-  if (!inPlace) void qc.invalidateQueries({ queryKey: keys.jobsAll });
+  if (!inPlace) refreshList(qc, keys.jobsAll);
 
   const statusChanged = prev?.status !== job.status;
   const finished = !isJobActive(job.status);
@@ -86,7 +109,7 @@ export function applyJob(qc: QueryClient, job: Job): void {
     const transcriptChanged = (prev?.result?.transcript_id ?? null) !== (job.result?.transcript_id ?? null);
     if (statusChanged) {
       void qc.invalidateQueries({ queryKey: keys.video(vid) });
-      void qc.invalidateQueries({ queryKey: keys.videosAll });
+      refreshList(qc, keys.videosAll);
     }
     if (noteChanged || (statusChanged && finished)) void qc.invalidateQueries({ queryKey: keys.note(vid) });
     if (transcriptChanged || (statusChanged && finished)) {
@@ -107,7 +130,7 @@ export function applyVideo(qc: QueryClient, video: Video): void {
     video,
     (f) => typeof f.title !== 'string' || video.title.toLowerCase().includes(f.title.toLowerCase()),
   );
-  if (!inPlace) void qc.invalidateQueries({ queryKey: keys.videosAll });
+  if (!inPlace) refreshList(qc, keys.videosAll);
   if (!prev) return;
   if (prev.note_id !== video.note_id) void qc.invalidateQueries({ queryKey: keys.note(video.video_id) });
   if (prev.transcript_id !== video.transcript_id) {

@@ -95,10 +95,7 @@ CGO_LDFLAGS="${CGO_LDFLAGS:+$CGO_LDFLAGS }-framework UniformTypeIdentifiers -mma
 # --- bundle ----------------------------------------------------------------
 log "assemble $APP_NAME.app"
 ICNS="build/darwin/$APP_NAME.icns"
-if [[ ! -f "$ICNS" || build/appicon.png -nt "$ICNS" ]]; then
-  [[ -f build/appicon.png ]] || die "build/appicon.png is missing (it is committed; regenerate with `make icon`)"
-  bash scripts/make-icns.sh build/appicon.png "$ICNS"
-fi
+[[ -f "$ICNS" ]] || die "$ICNS is missing"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 mv "$BIN" "$APP/Contents/MacOS/$APP_NAME"

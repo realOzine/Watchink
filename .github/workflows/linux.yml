@@ -183,4 +183,4 @@ jobs:
           set -euo pipefail
           gui="$(ls dist/watchink-[0-9]*-linux-amd64)"
           chmod +x "$gui"
-          bash scripts/e2e-linux.sh "$gui"
+          bash scripts/e2e.sh "$gui"

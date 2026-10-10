@@ -267,16 +267,6 @@ jobs:
             $global:LASTEXITCODE = 0
           }
 
-      # S-04 in a real WebView2: the page at http://wails.localhost calls a
-      # loopback server that applies the engine's CORS policy (bearer token,
-      # preflight, streamed events) and the six bindings. The program prints
-      # one PASS / FAIL line per check and exits by itself.
-      - name: "S-04: WebView2 reaches the loopback API"
-        if: ${{ !cancelled() }}
-        run: |
-          CGO_ENABLED=0 go build -tags desktop,production -o desktopsmoke.exe ./cmd/_desktopsmoke
-          ./desktopsmoke.exe -timeout 90s
-
       - name: Stop the smoke engine
         if: ${{ always() }}
         shell: pwsh

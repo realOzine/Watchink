@@ -28,8 +28,7 @@
 # The headless build needs none of the GTK packages. Runtime packages of the
 # GUI build are listed in README.md and checked by `watchink doctor`.
 #
-# The embedded window icon build/linux/watchink.png is build/appicon.png
-# scaled to 256x256; see build/linux/assets.go.
+# The window icon build/linux/watchink.png is embedded by build/linux/assets.go.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

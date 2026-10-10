@@ -62,10 +62,6 @@ type Options struct {
 	Reveal func(path string) error
 	// Logger receives shell and Wails diagnostics; nil discards them.
 	Logger *slog.Logger
-
-	// ExtraBind adds more bound structs. It exists for cmd/_desktopsmoke
-	// only: the product surface is the six methods of App (§13.6).
-	ExtraBind []any
 }
 
 // Run opens the desktop window and blocks until it is closed. It must be
@@ -111,7 +107,7 @@ func Run(opts Options) error {
 		AssetServer: &assetserver.Options{
 			Assets: opts.Assets,
 		},
-		Bind:           append([]any{a}, opts.ExtraBind...),
+		Bind:           []any{a},
 		ErrorFormatter: formatError,
 		OnStartup:      a.setContext,
 		OnShutdown:     func(context.Context) { a.close() },

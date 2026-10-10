@@ -122,7 +122,7 @@ if [[ -z "$WINDRES_BIN" ]]; then
 fi
 if [[ -n "$WINDRES_BIN" ]]; then
   log "resources ($WINDRES_BIN)"
-  [[ -f build/windows/$APP_NAME.ico ]] || go run scripts/make-ico.go build/appicon.png "build/windows/$APP_NAME.ico"
+  [[ -f build/windows/$APP_NAME.ico ]] || die "build/windows/$APP_NAME.ico is missing"
   sed -e "s/__FILE_VERSION__/$FILE_VERSION/g" build/windows/watchink.exe.manifest > "$GEN_MANIFEST"
   sed -e "s/__FILE_VERSION_COMMAS__/${FILE_VERSION//./,}/g" \
       -e "s/__VERSION__/$VERSION/g" \

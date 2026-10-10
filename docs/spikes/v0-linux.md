@@ -16,7 +16,7 @@
 | `third_party/whisper/build.sh` | `linux amd64`：静态链接、仅 CPU、x86-64-v3 指令集基线 |
 | 桌面 | `scripts/build-linux.sh`、Makefile 的 `desktop-linux` / `package-linux`；Wails 的 Linux 选项（窗口图标、程序名、GPU 策略）；没有图形会话时 `desktop` 给出说明而不是崩溃 |
 | `watchink doctor` | 新包 `internal/sysreq` 按文件查找 §16.3 的四个系统库，缺少时给出 apt 包名 |
-| CI | `.github/workflows/linux.yml`，以及它调用的 `scripts/smoke-linux.sh`（S-03）和 `scripts/e2e-linux.sh`（工具下载、全流程、S-08） |
+| CI | `.github/workflows/linux.yml`，以及它调用的 `scripts/smoke-linux.sh`（S-03）和 `scripts/e2e.sh`（工具下载、全流程、S-08） |
 
 ## 在 macOS 上验证过的
 
@@ -33,7 +33,7 @@
 | 物理核数解析 | `cores_linux.go` 的测试临时去掉构建标签后在 macOS 上运行 | 通过（超线程、双路、离线 CPU、缺少 package id） |
 | `doctor` 的系统库检查 | `go test ./internal/sysreq/ ./internal/cli/` | 通过（查找逻辑与平台无关，用临时目录测试） |
 | 冒烟脚本的流程 | 用 macOS 的 nogui 构建运行 `scripts/smoke-linux.sh` | 通过：`serve`、CLI、`engine stop`、CLI 拉起分离的后台 Engine、MCP 的 initialize / tools/list / tools/call |
-| 端到端脚本的流程 | 用 macOS 的 nogui 构建和已安装的 macOS 工具运行 `scripts/e2e-linux.sh` | 通过：导入、转写、笔记、导出、取消、`kill -9` Engine 后子进程消失、重启续跑。这验证的是脚本本身和 macOS 的行为，不是 Linux 的行为 |
+| 端到端脚本的流程 | 用 macOS 的 nogui 构建和已安装的 macOS 工具运行 `scripts/e2e.sh` | 通过：导入、转写、笔记、导出、取消、`kill -9` Engine 后子进程消失、重启续跑。这验证的是脚本本身和 macOS 的行为，不是 Linux 的行为 |
 | 脚本与工作流语法 | `bash -n` 四个脚本；用 Ruby 的 YAML 解析 `linux.yml` | 通过。没有 shellcheck 和 actionlint |
 
 ### 清单条目（2026-10-10 下载并计算）
@@ -56,13 +56,13 @@
 
 | 项 | 状态 | 由谁来验证 |
 | --- | --- | --- |
-| `procx` 在 Linux 上的全部行为：取消杀进程树、`Pdeathsig`、`KillIfMatches`、分离启动 | 已对 Linux 编译 | CI 的 `go test`（`runner_unix_test.go`、`runner_linux_test.go`）和 `e2e-linux.sh` |
+| `procx` 在 Linux 上的全部行为：取消杀进程树、`Pdeathsig`、`KillIfMatches`、分离启动 | 已对 Linux 编译 | CI 的 `go test`（`runner_unix_test.go`、`runner_linux_test.go`）和 `e2e.sh` |
 | `xdg-open` 打开浏览器、D-Bus 定位文件 | 已对 Linux 编译；只有参数拼装有单元测试 | 需要人在真实桌面上操作 |
 | 物理核数读取真实的 sysfs | 已对 Linux 编译 | CI 的 `go test` |
 | 桌面 ELF 的 cgo 构建（`-tags desktop,production,webkit2_41`） | **未编译**。macOS 上没有 Linux 的 C 工具链和 GTK / WebKitGTK 开发文件 | CI 的构建步骤 |
 | whisper-cli 的 Linux 构建 | **未编译**。`build.sh` 的 Linux 分支只做过 `bash -n` 和“非 Linux 主机拒绝运行”的检查；CMake 选项名对照过固定版本的源码 | CI 的 whisper 步骤 |
 | `scripts/build-linux.sh` | 只做过 `bash -n` | CI |
-| 四个下载的工具能否在 Ubuntu 24.04 上运行 | 逻辑未测 | `e2e-linux.sh` 的 `tools prepare` |
+| 四个下载的工具能否在 Ubuntu 24.04 上运行 | 逻辑未测 | `e2e.sh` 的 `tools prepare` |
 | 没有图形会话时的行为（S-03） | 逻辑未测；脚本流程在 macOS 上跑通 | CI 的两个冒烟步骤 |
 | 窗口能否打开并加载前端（S-01） | 未编译 | CI 的 Xvfb 步骤只能说明“窗口起来了、前端调用了绑定”，不拦截构建；窗口外观需要人看 |
 | 窗口内视频播放（S-05、D-11） | 未编译 | 需要人在装好 GStreamer 插件的桌面上操作 |

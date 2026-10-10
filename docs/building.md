@@ -32,7 +32,7 @@ make desktop-linux   # dist/watchink-<版本>-linux-amd64：单个 ELF，包含�
 make package-linux   # 再加上 dist/watchink-headless-<版本>-linux-amd64 和 SHA256SUMS
 make test lint-linux
 scripts/smoke-linux.sh dist/watchink-<版本>-linux-amd64 --gui   # 无图形会话下的冒烟检查
-scripts/e2e-linux.sh dist/watchink-<版本>-linux-amd64           # 真实工具加伪造在线模型的全流程
+scripts/e2e.sh dist/watchink-<版本>-linux-amd64           # 真实工具加伪造在线模型的全流程
 ```
 
 运行 `watchink-<版本>-linux-amd64` 需要以下系统包。它动态链接 GTK 和 WebKitGTK，所以即使只用 `serve`、`mcp` 或命令行，前两个包也必须装上；`watchink doctor` 会检查这四项：

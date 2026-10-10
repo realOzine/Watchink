@@ -336,7 +336,7 @@ make build          # 纯 Go 的无界面二进制 bin/watchink
 make desktop        # 前端 + whisper-cli + cgo 构建，组装并 ad-hoc 签名 dist/Watchink.app
 make test lint      # Go 测试、gofmt、go vet（含 desktop 标签）
 cd frontend && corepack pnpm test && corepack pnpm e2e
-scripts/e2e-macos.sh  # 真实 ffmpeg / whisper + 假模型的端到端检查（需要已安装工具和模型）
+scripts/e2e.sh  # 真实 ffmpeg / whisper + 假模型的端到端检查（需要已安装工具和模型）
 go test -run '^$' -bench . -benchmem ./internal/bench   # 基准测试
 go run ./internal/bench/cmd/loadtest                    # 并发 HTTP 压测
 ```
@@ -350,7 +350,7 @@ go run ./internal/bench/cmd/loadtest                    # 并发 HTTP 压测
 | `api` ↔ `client` | client 对着真实的 api 处理器加假 service 做往返测试 |
 | `cli`、`mcpserver` | 假的 `app.Service` |
 | 前端 | vitest 单元测试；Playwright 跑在模拟服务上 |
-| `pipeline` | **没有 Go 测试**。它依赖真实的工具管理器和子进程，目前由 `scripts/e2e-macos.sh` 覆盖：导入、重复导入、重新生成笔记三条路径，并检查各阶段的复用情况 |
+| `pipeline` | **没有 Go 测试**。它依赖真实的工具管理器和子进程，目前由 `scripts/e2e.sh` 覆盖：导入、重复导入、重新生成笔记三条路径，并检查各阶段的复用情况 |
 | `service` | 并发导入（同一文件、不同文件）、缓存、字幕片段选择；其余用例由端到端脚本和压测覆盖 |
 
 有测试的有测试的各包语句覆盖率大多在 80%–97% 之间；`pipeline` 为 0%。

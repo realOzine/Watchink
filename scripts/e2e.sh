@@ -9,7 +9,7 @@
 #   - S-08: cancel stops the child process; killing the engine with SIGKILL
 #     takes the child with it (Pdeathsig), and the job resumes afterwards
 #
-#   scripts/e2e-linux.sh <watchink binary>
+#   scripts/e2e.sh <watchink binary>
 #
 # Needs: go (to build the fake model server), python3, curl, pgrep, and
 # espeak-ng for the speech sample (Ubuntu: sudo apt-get install espeak-ng).

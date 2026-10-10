@@ -12,7 +12,7 @@ DESKTOP_ENV := CGO_ENABLED=1 \
 	CGO_CFLAGS="-mmacosx-version-min=$(MACOS_MIN)" \
 	CGO_LDFLAGS="-framework UniformTypeIdentifiers -mmacosx-version-min=$(MACOS_MIN)"
 
-.PHONY: frontend whisper build desktop package-macos icon test lint clean
+.PHONY: frontend whisper build desktop package-macos test lint clean
 
 ## frontend: build the SPA into internal/webui/dist
 frontend:
@@ -57,14 +57,6 @@ lint-linux:
 	go vet ./...
 	CGO_ENABLED=1 go vet -tags desktop,webkit2_41 ./...
 
-## icon: regenerate every icon file from build/appicon.svg (needs the
-## frontend's Playwright browser: cd frontend && corepack pnpm e2e:install)
-icon:
-	node scripts/render-icon.mjs build/appicon.png
-	bash scripts/make-icns.sh
-	sips -Z 256 build/appicon.png --out build/linux/watchink.png >/dev/null
-	go run scripts/make-ico.go build/appicon.png build/windows/Watchink.ico
-
 ## test: unit tests of the default (non-GUI) build
 test:
 	go test ./...
@@ -86,7 +78,7 @@ clean:
 # build needs no cgo; such a build has no embedded whisper-cli and, without a
 # MinGW windres, no icon or manifest. See docs/spikes/v0-windows.md.
 
-.PHONY: whisper-windows desktop-windows package-windows icon-windows lint-windows
+.PHONY: whisper-windows desktop-windows package-windows lint-windows
 
 ## whisper-windows: build the embedded whisper-cli.exe (Windows host only)
 whisper-windows:
@@ -99,10 +91,6 @@ desktop-windows:
 ## package-windows: dist/Watchink-<ver>-windows-amd64.zip + SHA256SUMS
 package-windows:
 	bash scripts/build-windows.sh package
-
-## icon-windows: regenerate build/windows/Watchink.ico from build/appicon.png
-icon-windows:
-	go run scripts/make-ico.go build/appicon.png build/windows/Watchink.ico
 
 ## lint-windows: go vet of the Windows build, from any host
 lint-windows:

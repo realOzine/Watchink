@@ -83,7 +83,7 @@ func TestYtDlpArgs(t *testing.T) {
 	wantOrder := []string{
 		"--no-playlist", "--no-mtime", "--newline", "--ffmpeg-location /t/ff",
 		"--js-runtimes deno:/t/deno", "-f " + ytdlpFormat, "--merge-output-format mp4",
-		"--progress-template download:WK_PROGRESS", "-o /data/v1/source.%(ext)s",
+		"--progress-template download:WK_PROGRESS", "-o " + filepath.Join("/data/v1", "source.%(ext)s"),
 		"-- https://www.youtube.com/watch?v=dQw4w9WgXcQ",
 	}
 	pos := 0

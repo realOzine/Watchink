@@ -38,6 +38,11 @@ type farm struct {
 func newFarm(t *testing.T, clientBuild, engineBuild string) *farm {
 	t.Helper()
 	f := &farm{t: t, buildID: engineBuild}
+	// Cleanups run last-in-first-out and the removal of the test's temp
+	// directories is registered by the first t.TempDir call. Making that call
+	// here, before the engines' cleanup below, means the engines stop first:
+	// Windows cannot delete a data directory whose engine.log is still open.
+	t.TempDir()
 	oldSpawner, oldBuild := Spawner, buildID
 	Spawner = f.spawn
 	buildID = func() string { return clientBuild }

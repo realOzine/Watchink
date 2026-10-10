@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"testing/iotest"
@@ -121,7 +122,8 @@ func TestExtractTarXz(t *testing.T) {
 	if err != nil || string(data) != want {
 		t.Errorf("tool = %q, %v", data, err)
 	}
-	if st, err := os.Stat(filepath.Join(dir, "tool")); err != nil || st.Mode().Perm() != 0o755 {
+	// Windows has no executable bit; the mode it reports is unrelated.
+	if st, err := os.Stat(filepath.Join(dir, "tool")); err != nil || (runtime.GOOS != "windows" && st.Mode().Perm() != 0o755) {
 		t.Errorf("tool mode = %v, %v", st, err)
 	}
 	if entries, _ := os.ReadDir(dir); len(entries) != 1 {

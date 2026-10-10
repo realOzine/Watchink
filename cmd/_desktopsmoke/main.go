@@ -31,6 +31,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -226,6 +227,7 @@ func main() {
 		// Forward slashes: the value lands in a JavaScript string literal, where
 		// the backslashes of a Windows path would be read as escapes.
 		"__DATA_DIR__", filepath.ToSlash(dataDir),
+		"__OUTSIDE_PATH__", outsidePath(),
 	).Replace(pageHTML)
 	assets := fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte(page)}}
 
@@ -322,6 +324,16 @@ func main() {
 	exit("window closed")
 }
 
+// outsidePath is an absolute path of a file that exists outside any data
+// directory, for the "reveal must refuse this" check. Forward slashes, like
+// __DATA_DIR__, because it lands in a JavaScript string literal.
+func outsidePath() string {
+	if runtime.GOOS == "windows" {
+		return "C:/Windows/win.ini"
+	}
+	return "/etc/hosts"
+}
+
 const pageHTML = `<!doctype html>
 <html><head><meta charset="utf-8"><title>Watchink smoke</title></head>
 <body style="font:14px -apple-system;padding:16px">
@@ -329,6 +341,7 @@ const pageHTML = `<!doctype html>
 <script>
 const HAS_MEDIA = __HAS_MEDIA__;
 const DATA_DIR = "__DATA_DIR__";
+const OUTSIDE_PATH = "__OUTSIDE_PATH__";
 const logEl = document.getElementById('log');
 function withTimeout(p, ms, what) {
   return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(what + ' timed out after ' + ms + ' ms')), ms))]);
@@ -428,14 +441,14 @@ async function main() {
   await check('binding.reveal', async () => {
     await App.RevealInFileManager(DATA_DIR + '/inside.txt');
     let rejected = null;
-    try { await App.RevealInFileManager('/etc/hosts'); } catch (e) { rejected = errOf(e); }
+    try { await App.RevealInFileManager(OUTSIDE_PATH); } catch (e) { rejected = errOf(e); }
     assert(rejected && rejected.code === 'PATH_NOT_ALLOWED', 'outside path: ' + JSON.stringify(rejected));
-    return 'inside data dir ok; /etc/hosts -> PATH_NOT_ALLOWED';
+    return 'inside data dir ok; ' + OUTSIDE_PATH + ' -> PATH_NOT_ALLOWED';
   });
 
   await check('binding.agent_setup', async () => {
     const s = await App.AgentSetupInfo();
-    assert(s.executable.startsWith('/') && s.mcp_command.length === 2 && s.mcp_command[1] === 'mcp', JSON.stringify(s));
+    assert(/^(\/|[A-Za-z]:\\)/.test(s.executable) && s.mcp_command.length === 2 && s.mcp_command[1] === 'mcp', JSON.stringify(s));
     assert(s.snippets.length === 2 && s.snippets.every(x => x.name && x.language && x.content), 'snippets');
     return 'executable=' + s.executable;
   });

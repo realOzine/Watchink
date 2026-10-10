@@ -178,7 +178,10 @@ func (w *WhisperCpp) Transcribe(ctx context.Context, req Request) (*Result, erro
 
 	var mu sync.Mutex
 	last := 0.0
-	onLine := func(line string) {
+	// Progress lines come on stderr only. stdout carries the transcript text,
+	// which must never be parsed: a sentence like "progress = 99%" would
+	// otherwise jump the bar.
+	onProgress := func(line string) {
 		if req.Progress == nil {
 			return
 		}
@@ -202,8 +205,8 @@ func (w *WhisperCpp) Transcribe(ctx context.Context, req Request) (*Result, erro
 	}
 	res, err := w.Runner.Run(ctx, procx.Cmd{
 		Path: w.Bin, Args: w.transcribeArgs(req),
-		OnStdoutLine: onLine, OnStderrLine: onLine,
-		Stage: app.StageTranscribe,
+		OnStderrLine: onProgress,
+		Stage:        app.StageTranscribe,
 	})
 	if err != nil {
 		_ = os.Remove(jsonPath) // possibly half-written

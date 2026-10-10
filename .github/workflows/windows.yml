@@ -102,11 +102,15 @@ jobs:
           # only works because of the UTF-8 manifest embedded by build.sh.
           dir="$(cygpath -u "$RUNNER_TEMP")/whisper 冒烟"
           mkdir -p "$dir"
-          curl -fsSL --retry 3 -o "$dir/模型.bin" \
+          # Downloaded under ASCII names and then renamed: the curl that ships
+          # with Git Bash cannot write to a path outside the system code page.
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/model.bin" \
             https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-tiny-q5_1.bin
-          [ "$(sha256sum "$dir/模型.bin" | awk '{print $1}')" = 818710568da3ca15689e31a743197b520007872ff9576237bda97bd1b469c3d7 ]
-          curl -fsSL --retry 3 -o "$dir/音频.wav" \
+          [ "$(sha256sum "$RUNNER_TEMP/model.bin" | awk '{print $1}')" = 818710568da3ca15689e31a743197b520007872ff9576237bda97bd1b469c3d7 ]
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/audio.wav" \
             "https://raw.githubusercontent.com/ggml-org/whisper.cpp/$WHISPER_COMMIT/samples/jfk.wav"
+          mv "$RUNNER_TEMP/model.bin" "$dir/模型.bin"
+          mv "$RUNNER_TEMP/audio.wav" "$dir/音频.wav"
           "$bin" --help > /dev/null
           "$bin" -m "$(cygpath -w "$dir/模型.bin")" -f "$(cygpath -w "$dir/音频.wav")" \
             -l en -t 4 -oj -of "$(cygpath -w "$dir/输出")"

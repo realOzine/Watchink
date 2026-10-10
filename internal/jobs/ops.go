@@ -23,7 +23,7 @@ type StageContext struct {
 	StageAttempt int
 	// IgnoreCache is true when the job's reprocess_from option covers this
 	// stage (StageDef.ReprocessGroups): the stage must not reuse a
-	// registered artifact and must produce a fresh one (§7.5).
+	// registered artifact and must produce a fresh one.
 	IgnoreCache bool
 	// Logger carries the job_id and stage attributes.
 	Logger *slog.Logger
@@ -129,7 +129,7 @@ func (rs *runStage) closeProgress() {
 
 // SetResult updates the job result (transcript_id / note_id) as soon as the
 // stage has produced it, so readers see e.g. the note while playback is
-// still running (§7.2). fn receives the current result and edits it in
+// still running. fn receives the current result and edits it in
 // place. It fails when the scheduler has already given up on the stage
 // (forced cancel or stop timeout).
 func (sc *StageContext) SetResult(fn func(*app.JobResult)) error {
@@ -160,7 +160,7 @@ func (sc *StageContext) SetResult(fn func(*app.JobResult)) error {
 	return nil
 }
 
-// Cancel cancels a job (§7.3). A queued job becomes cancelled at once. A
+// Cancel cancels a job. A queued job becomes cancelled at once. A
 // running job becomes cancelling, its stage contexts are cancelled, and it
 // turns cancelled when every stage has returned; if that takes longer than
 // Options.CancelTimeout the ForceKill hook is called and the job is marked
@@ -262,7 +262,7 @@ func (s *Scheduler) abandon(rj *runJob, stageStatus, jobStatus string, jobErr *a
 }
 
 // Retry re-queues a failed, cancelled or interrupted job under the same job
-// ID with attempt + 1 (§7.3). Stages that did not succeed go back to
+// ID with attempt + 1. Stages that did not succeed go back to
 // pending. A succeeded stage is kept, unless a stage that is going to run
 // depends on it and its artifact is gone (purged or file missing) — then it
 // runs again too, so a retry never trips over a deleted intermediate file.
@@ -340,7 +340,7 @@ func (s *Scheduler) artifactUsable(ctx context.Context, artifactID string) bool 
 }
 
 // Wait is the long poll behind GET /jobs/{id}?wait_seconds=&after_rev=
-// (§13.2): it returns the job as soon as its rev is greater than afterRev,
+// : it returns the job as soon as its rev is greater than afterRev,
 // or the current job when timeout elapses or the scheduler stops. A timeout
 // <= 0 returns immediately. It returns ctx.Err() when ctx ends first and
 // NOT_FOUND for an unknown job.
@@ -374,7 +374,7 @@ func (s *Scheduler) Wait(ctx context.Context, jobID string, afterRev int64, time
 	}
 }
 
-// Stop shuts the scheduler down (§5.4): no new work is accepted (NewJob,
+// Stop shuts the scheduler down: no new work is accepted (NewJob,
 // Cancel and Retry return ENGINE_UNAVAILABLE), the context of every running
 // stage is cancelled, and Stop waits up to Options.StopTimeout for them to
 // return. With force the ForceKill hook is called for every job with

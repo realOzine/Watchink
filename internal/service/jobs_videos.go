@@ -33,7 +33,7 @@ func (s *Service) ListJobs(ctx context.Context, req app.ListJobsRequest) (*app.J
 	return out, nil
 }
 
-// GetJob implements app.Service, long-polling when WaitSeconds > 0 (§13.2).
+// GetJob implements app.Service, long-polling when WaitSeconds > 0.
 func (s *Service) GetJob(ctx context.Context, req app.GetJobRequest) (*app.Job, error) {
 	var j app.Job
 	var err error
@@ -116,7 +116,7 @@ func (s *Service) videoDTO(v *store.Video, latest *store.JobWithStages, playback
 		WebURL: s.base() + "/videos/" + v.ID, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt,
 		PlaybackReady: playbackReady,
 	}
-	// §13.2: status is derived from the latest job and the current note.
+	// status is derived from the latest job and the current note.
 	dto.Status = app.VideoProcessing
 	if latest != nil {
 		dto.LatestJobID = &latest.ID

@@ -1,5 +1,5 @@
 // Package service implements app.Local, the in-process use cases of the
-// engine (docs/v0.md §4.1 "app"): import and dedup, jobs, videos, notes,
+// engine: import and dedup, jobs, videos, notes,
 // transcripts, playback, export, settings and tools. It owns the store, the
 // scheduler, the event bus and the tool manager of one data directory.
 package service
@@ -30,7 +30,7 @@ type Options struct {
 	// AddSecret registers a value the log redactor must mask; may be nil.
 	AddSecret func(string)
 	// GuardExe is the watchink executable used to wrap child processes
-	// (macOS orphan protection, §5.5); empty runs tools directly.
+	// (macOS orphan protection); empty runs tools directly.
 	GuardExe string
 }
 
@@ -63,7 +63,7 @@ type Service struct {
 var _ app.Local = (*Service)(nil)
 
 // Open loads the configuration, opens the database (running migrations) and
-// performs restart recovery (§5.3 steps 2–4). The scheduler is not started:
+// performs restart recovery (steps 2–4). The scheduler is not started:
 // call Start once the engine is listening.
 func Open(ctx context.Context, opts Options) (*Service, error) {
 	log := opts.Logger
@@ -89,7 +89,7 @@ func Open(ctx context.Context, opts Options) (*Service, error) {
 	s.runner = procx.New(procx.Options{
 		GuardExe: opts.GuardExe,
 		// child_processes lets the next engine run find children that
-		// outlived a crash (§7.6 step 3).
+		// outlived a crash (step 3).
 		OnStart: func(pid int, exe, jobID, stage string) {
 			_ = st.AddChildProcess(context.Background(), store.ChildProcess{PID: pid, JobID: jobID, Stage: stage, Exe: exe, StartedAt: app.Now()})
 		},
@@ -120,7 +120,7 @@ func Open(ctx context.Context, opts Options) (*Service, error) {
 	return s, nil
 }
 
-// recover applies §7.6: fix states left by a dead engine, sweep orphan
+// recover runs at engine start: fix states left by a dead engine, sweep orphan
 // files and kill children that survived it.
 func (s *Service) recover(ctx context.Context, autoResume bool) error {
 	res, err := s.st.Recover(ctx, autoResume)
@@ -182,7 +182,7 @@ func (s *Service) WebEnabled() bool { return s.Settings().Web.Enabled }
 // Port returns the configured engine port.
 func (s *Service) Port() int { return s.Settings().Engine.Port }
 
-// IdleExit returns the configured idle-exit duration (§5.4).
+// IdleExit returns the configured idle-exit duration.
 func (s *Service) IdleExit() time.Duration {
 	d, err := config.ParseDuration(s.Settings().Engine.IdleExit)
 	if err != nil {
@@ -205,7 +205,7 @@ func (s *Service) base() string {
 	return s.baseURL
 }
 
-// Start starts the scheduler (§5.3 step 7).
+// Start starts the scheduler (step 7).
 func (s *Service) Start(ctx context.Context) error { return s.sched.Start(ctx) }
 
 // Close releases the database; call it after Stop.

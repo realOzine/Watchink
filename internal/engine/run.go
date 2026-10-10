@@ -22,7 +22,7 @@ import (
 	"watchink/internal/app"
 )
 
-// DefaultIdleExit is the background-mode idle timeout (§5.4).
+// DefaultIdleExit is the background-mode idle timeout.
 const DefaultIdleExit = 10 * time.Minute
 
 // Env is what Options.Build receives.
@@ -51,7 +51,7 @@ type Built struct {
 	// Start (the service needs it for web_url, playback and download URLs).
 	SetBaseURL func(baseURL string)
 	// Start, when set, starts the scheduler. It is called after engine.json
-	// has been written (§5.3 step 7); its ctx stays alive until Service.Stop
+	// has been written (step 7); its ctx stays alive until Service.Stop
 	// has returned.
 	Start func(ctx context.Context) error
 	// Close, when set, releases the store and other resources at exit.
@@ -67,7 +67,7 @@ type Options struct {
 	Mode string
 	// Port overrides the listen port: 0 uses Built.Port (then 47823), a
 	// negative value asks the OS for a free port. A busy port always falls
-	// back to a free one (§5.3 step 5).
+	// back to a free one (step 5).
 	Port int
 	// Version and BuildID identify the build (internal/version).
 	Version string
@@ -75,7 +75,7 @@ type Options struct {
 	// Stderr receives human-readable log lines in foreground mode.
 	Stderr io.Writer
 	// Build assembles the service after the lock is held: config, store,
-	// migrations and restart recovery happen inside it (§5.3 steps 2–4).
+	// migrations and restart recovery happen inside it (steps 2–4).
 	Build func(ctx context.Context, env Env) (*Built, error)
 
 	// OnReady, when set, is called once the engine accepts requests.
@@ -104,14 +104,14 @@ type stopRequest struct {
 // Run runs an engine for opts.DataDir until ctx is cancelled, a termination
 // signal arrives, POST /api/v1/engine/shutdown is called, or (background
 // mode) the engine has been idle for the configured time. It follows the
-// start order of §5.3 and returns ErrAlreadyRunning when another engine owns
+// start order and returns ErrAlreadyRunning when another engine owns
 // the data directory. A clean stop returns nil.
 func Run(ctx context.Context, opts Options) (err error) {
 	if err := opts.normalize(); err != nil {
 		return err
 	}
 
-	// 1. The lock decides who the engine is (§5.1).
+	// 1. The lock decides who the engine is.
 	lock, err := acquireLock(opts.DataDir)
 	if err != nil {
 		return err
@@ -151,7 +151,7 @@ func Run(ctx context.Context, opts Options) (err error) {
 	}
 	defer closeBuilt()
 
-	// 5. Listen on loopback only (§15).
+	// 5. Listen on loopback only.
 	ln, err := listen(opts.Port, built.Port, log)
 	if err != nil {
 		log.Error("engine listen failed", "error", err.Error())
@@ -242,7 +242,7 @@ func Run(ctx context.Context, opts Options) (err error) {
 	stop, runErr := waitForStop(ctx, stopCh, sigCh, serveErr, idle, idleCheckInterval(opts, built))
 	log.Info("engine stopping", "reason", stop.reason, "force", stop.force)
 
-	// Stop the service (§5.4). A second signal or a later force request
+	// Stop the service. A second signal or a later force request
 	// upgrades a graceful stop that is still waiting for running stages.
 	stopService(runCtx, built.Service, stop.force, stopCh, sigCh, log)
 
@@ -281,7 +281,7 @@ func (o *Options) normalize() error {
 	return nil
 }
 
-// newToken returns the per-run bearer token: 32 random bytes, base64url (§15).
+// newToken returns the per-run bearer token: 32 random bytes, base64url.
 func newToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
@@ -319,7 +319,7 @@ func newHandler(opts Options, built *Built, disc Discovery, port int, log *slog.
 
 // waitForStop blocks until something asks the engine to stop and says why:
 // the caller's context, a signal, a shutdown request, a dead HTTP server
-// (the only case with an error) or the idle check (§5.4).
+// (the only case with an error) or the idle check.
 func waitForStop(ctx context.Context, stopCh <-chan stopRequest, sigCh <-chan os.Signal, serveErr <-chan error, idle func() bool, idleEvery time.Duration) (stopRequest, error) {
 	var idleTick <-chan time.Time
 	if idleEvery > 0 {
@@ -359,7 +359,7 @@ func idleCheckInterval(opts Options, built *Built) time.Duration {
 }
 
 // listen binds 127.0.0.1 on the wanted port, falling back to a port chosen
-// by the OS when it is taken (§5.3 step 5).
+// by the OS when it is taken (step 5).
 func listen(optPort, cfgPort int, log *slog.Logger) (net.Listener, error) {
 	port := optPort
 	if port == 0 {
@@ -383,7 +383,7 @@ func listen(optPort, cfgPort int, log *slog.Logger) (net.Listener, error) {
 }
 
 // idleTimeout returns the idle-exit duration, or 0 when idle exit is off:
-// only background engines idle out (§5.4).
+// only background engines idle out.
 func idleTimeout(mode string, configured time.Duration) time.Duration {
 	if mode != ModeBackground || configured < 0 {
 		return 0
@@ -394,7 +394,7 @@ func idleTimeout(mode string, configured time.Duration) time.Duration {
 	return configured
 }
 
-// isIdle evaluates the three conditions of §5.4: no queued or running job,
+// isIdle evaluates the three conditions: no queued or running job,
 // no event-stream subscriber, and no API request for the idle duration.
 func isIdle(ctx context.Context, svc app.Local, h *api.Handler, started time.Time, idle time.Duration) bool {
 	st := h.Stats()

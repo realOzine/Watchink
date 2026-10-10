@@ -65,7 +65,7 @@ function JobCard({ job }: { job: Job }) {
               {t.openVideo}
             </Link>
           )}
-          {/* §7.3: cancel for queued / running, retry for failed / cancelled / interrupted. */}
+          {/* cancel for queued / running, retry for failed / cancelled / interrupted. */}
           <Button
             small
             variant="danger"

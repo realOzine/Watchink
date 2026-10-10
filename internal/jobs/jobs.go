@@ -1,22 +1,28 @@
-// Package jobs is the single scheduler of an engine (docs/v0.md D-18, §7):
+// Package jobs is the single scheduler of an engine:
 // it runs each job as a fixed DAG of stages, bounded by per-resource
-// semaphores, and owns the job and stage state machines of §7.3.
+// semaphores, and owns the job and stage state machines.
 //
 // # Usage
 //
 //	sched := jobs.New(jobs.Options{Store: st, Publisher: bus, ...})
 //	sched.Register(app.JobKindProcessVideo, buildProcessVideo) // per job kind
-//	st.Recover(ctx, autoResume)                                 // §7.6, before Start
-//	sched.Start(ctx)
-//	...
-//	// inside the import transaction (§7.5):
-//	st.Write(ctx, func(tx *store.Tx) error {
-//	    ... check ActiveJobOfVideo ...
+//	st.Recover(ctx, autoResume)                                 // before Start
+//	sched.Start(ctx).
+//
+// ..
+//
+//	// inside the import transaction:
+//	st.Write(ctx, func(tx *store.Tx) error {.
+//
+// .. check ActiveJobOfVideo ...
+//
 //	    job, err = sched.NewJob(ctx, tx.Queries, jobs.JobParams{...})
 //	    return err
 //	})
-//	sched.Announce(ctx, job.ID) // after commit: publish + wake
-//	...
+//	sched.Announce(ctx, job.ID) // after commit: publish + wake.
+//
+// ..
+//
 //	sched.Stop(ctx, force)
 //
 // The database is the source of truth for every status; the scheduler keeps
@@ -43,7 +49,7 @@ import (
 	"watchink/internal/store"
 )
 
-// Resource classes of D-18. Any other name (including "") is unlimited.
+// Resource classes. Any other name (including "") is unlimited.
 const (
 	ResourceNet   = "net"
 	ResourceMedia = "media"
@@ -53,7 +59,7 @@ const (
 	ResourceCPU   = "cpu"
 )
 
-// Reprocess groups: the values of the reprocess_from job option (§7.5).
+// Reprocess groups: the values of the reprocess_from job option.
 const (
 	ReprocessAcquire    = "acquire"
 	ReprocessTranscribe = "transcribe"
@@ -63,14 +69,14 @@ const (
 	OptionReprocessFrom = "reprocess_from"
 )
 
-// Defaults for the timeouts of §7.3 / §5.4 and the progress throttle.
+// Defaults for the timeouts / and the progress throttle.
 const (
 	DefaultCancelTimeout    = 10 * time.Second
 	DefaultStopTimeout      = 10 * time.Second
 	DefaultProgressInterval = 500 * time.Millisecond
 )
 
-// DefaultLimits returns the resource limits of D-18.
+// DefaultLimits returns the resource limits.
 func DefaultLimits() map[string]int {
 	return map[string]int{ResourceNet: 2, ResourceMedia: 1, ResourceASR: 1, ResourceLLM: 4}
 }
@@ -91,7 +97,7 @@ type StageFunc func(ctx context.Context, sc *StageContext) (*StageResult, error)
 // StageResult is what a successful stage hands back for job_stages.
 type StageResult struct {
 	ArtifactID  string
-	Reused      bool // the fingerprint hit a registered artifact (§7.4)
+	Reused      bool // the fingerprint hit a registered artifact
 	Fingerprint string
 }
 
@@ -105,7 +111,7 @@ type StageDef struct {
 	// ResourceLLM is special: llm stages are not gated as a whole — they
 	// gate individual model requests with StageContext.Acquire.
 	Resource string
-	// Weight is the stage's share of the overall job progress (§7.2).
+	// Weight is the stage's share of the overall job progress.
 	Weight float64
 	// ExcludeFromProgress leaves the stage out of the overall progress
 	// (playback).
@@ -212,7 +218,7 @@ func (s *Scheduler) defsFor(job *store.Job) ([]StageDef, error) {
 }
 
 // NewJob creates a queued job and its stage rows through q. Pass tx.Queries
-// to make the job part of a caller transaction (the import flow of §7.5
+// to make the job part of a caller transaction (the import flow
 // checks "at most one active job per video" in that same transaction), then
 // call Announce(jobID) after the transaction committed. Submit does both for
 // the simple case.
@@ -285,16 +291,16 @@ func (s *Scheduler) Get(ctx context.Context, jobID string) (app.Job, error) {
 	return s.ToDTO(j), nil
 }
 
-// ActiveCount counts queued + running + cancelling jobs (§5.4).
+// ActiveCount counts queued + running + cancelling jobs.
 func (s *Scheduler) ActiveCount(ctx context.Context) (int, error) {
 	return s.st.CountActiveJobs(ctx)
 }
 
-// ToDTO assembles the wire form of a job (§13.2).
+// ToDTO assembles the wire form of a job.
 //
 // Stages are listed in the DAG order of the registered definitions (stage
 // rows unknown to the definitions follow in database order). Progress is the
-// weighted sum of §7.2 over the stages not excluded from progress, a
+// weighted sum over the stages not excluded from progress, a
 // succeeded stage counting as 1. Stage is the first stage that has not
 // succeeded yet, looking at the progress-relevant stages first so that a
 // still-running playback does not hide the main line; it is empty once the
@@ -353,7 +359,7 @@ func weightedStages(j *store.JobWithStages, defs []StageDef) (entries []weighted
 }
 
 // toDTO builds the job DTO: stages in DAG order, the weighted overall
-// progress of §7.2, and the stage the job is currently at.
+// progress, and the stage the job is currently at.
 func toDTO(j *store.JobWithStages, defs []StageDef) app.Job {
 	entries, total := weightedStages(j, defs)
 	out := app.Job{

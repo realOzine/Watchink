@@ -11,7 +11,7 @@ import (
 	"watchink/internal/app"
 )
 
-// eventData returns the bare payload object of an event (§13.3): the Job for
+// eventData returns the bare payload object of an event: the Job for
 // job.updated, the Video for video.updated, and so on.
 func eventData(ev app.Event) any {
 	switch ev.Type {
@@ -43,7 +43,7 @@ func writeEvent(w io.Writer, ev app.Event) error {
 	return err
 }
 
-// events serves the event stream (§13.3). The frontend reads it with a
+// events serves the event stream. The frontend reads it with a
 // streaming fetch so that it can send the Authorization header.
 func (h *Handler) events(w http.ResponseWriter, r *http.Request) {
 	last := r.Header.Get("Last-Event-ID")

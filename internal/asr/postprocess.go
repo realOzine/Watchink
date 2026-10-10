@@ -3,7 +3,7 @@ package asr
 import "strings"
 
 // collapseMinRun is the run length from which identical consecutive segments
-// are treated as a repetition hallucination (§8.2 step 3).
+// are treated as a repetition hallucination (step 3).
 const collapseMinRun = 3
 
 // Segment is a cleaned transcript segment on the video timeline.
@@ -15,7 +15,7 @@ type Segment struct {
 
 // Meta records what post-processing did; it is stored with the transcript.
 type Meta struct {
-	// TimelineOffsetMs was added to every segment time (§8.1).
+	// TimelineOffsetMs was added to every segment time.
 	TimelineOffsetMs int64 `json:"timeline_offset_ms"`
 	// RawSegments is the number of segments the engine produced.
 	RawSegments int `json:"raw_segments"`
@@ -29,13 +29,13 @@ type Meta struct {
 	AdjustedTimes int `json:"adjusted_times"`
 }
 
-// PostProcess implements §8.2 step 3 on the engine's raw segments:
+// PostProcess implements on the engine's raw segments:
 //
 //  1. trim surrounding whitespace and drop segments with empty text;
 //  2. fold every run of three or more consecutive identical segments (the
 //     usual repetition hallucination) into one segment that keeps the first
 //     occurrence's times, counting the folds in Meta;
-//  3. add offsetMs (timeline_offset_ms, §8.1) to all times, clamp at zero;
+//  3. add offsetMs (timeline_offset_ms) to all times, clamp at zero;
 //  4. make start times non-decreasing and guarantee start_ms < end_ms.
 //
 // It is pure: the input slice is not modified and segs is never nil.

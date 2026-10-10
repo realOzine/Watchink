@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# S-03 smoke test (docs/v0.md §18): without a graphical session, `serve`, the
+# smoke test: without a graphical session, `serve`, the
 # CLI and `mcp` must all work, and asking for the window must fail with an
 # explanation instead of a crash.
 #
@@ -7,8 +7,8 @@
 #
 # --gui says the binary is the desktop build, which adds the window checks.
 # The script unsets DISPLAY / WAYLAND_DISPLAY itself, uses a throwaway data
-# and config directory, downloads nothing and needs no API key. It is what
-# .github/workflows/linux.yml runs; it can also be run by hand over SSH.
+# and config directory, downloads nothing and needs no API key. It is what.
+# github/workflows/linux.yml runs; it can also be run by hand over SSH.
 # Needs bash, curl and python3.
 set -euo pipefail
 
@@ -85,7 +85,7 @@ wait_for 15 engine_stopped || fail "engine still running 15 s after engine stop"
 wait "$SERVE_PID" || fail "serve exited with an error: $(cat "$WORK/serve.log")"
 SERVE_PID=""
 
-step "CLI spawns a detached background engine (§5.2)"
+step "CLI spawns a detached background engine"
 "$BIN" videos list --json >/dev/null || fail "videos list could not spawn the engine"
 STATUS="$("$BIN" engine status --json)"
 [[ "$(json 'j["running"]' <<<"$STATUS")" == "True" && "$(json 'j["engine"]["mode"]' <<<"$STATUS")" == "background" ]] \

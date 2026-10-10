@@ -15,7 +15,7 @@ import (
 	"watchink/internal/procx"
 )
 
-// WhisperCpp drives whisper.cpp's whisper-cli (D-07). The flag names and the
+// WhisperCpp drives whisper.cpp's whisper-cli. The flag names and the
 // output formats below were checked against examples/cli/cli.cpp upstream:
 // `-oj` JSON, `-pp` progress lines and the `-dl` language line.
 type WhisperCpp struct {
@@ -135,7 +135,7 @@ func (w *WhisperCpp) DetectLanguage(ctx context.Context, req DetectRequest) (str
 	return lang, nil
 }
 
-// transcribeArgs builds the §8.2 command:
+// transcribeArgs builds the command:
 //
 //	whisper-cli -m <model> -f audio.wav -l <lang> -t <threads> -oj -of <out> -pp
 //	  [--prompt <prompt>] [--vad --vad-model <silero model>]

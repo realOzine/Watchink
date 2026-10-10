@@ -1,5 +1,5 @@
 // Package notes turns a transcript into a cited note: chunk → map → reduce →
-// validate/complete → render → export (docs/v0.md §9, D-09, D-10).
+// validate/complete → render → export.
 //
 // The model only ever proposes text and ids. Everything that must be true —
 // citation targets, timestamps, that no valid point is silently lost — is
@@ -18,7 +18,7 @@ import (
 	"watchink/internal/app"
 )
 
-// Versions that take part in fingerprints (§7.4, §9.8). Bump PromptVersion
+// Versions that take part in fingerprints. Bump PromptVersion
 // whenever a prompt template or the map/reduce validation changes, and
 // RendererVersion whenever the rendered Markdown or Document changes.
 const (
@@ -26,7 +26,7 @@ const (
 	RendererVersion = "render-v0.1"
 )
 
-// Chunking defaults and constants (§9.1).
+// Chunking defaults and constants.
 const (
 	DefaultChunkMaxTokens   = 3000
 	DefaultChunkMaxDuration = 10 * time.Minute
@@ -107,14 +107,14 @@ func countText(s string) (cjk, words int) {
 	return cjk, words
 }
 
-// EstimateTokens is the §9.1 estimate: one per CJK character plus 1.3 per
+// EstimateTokens is the estimate: one per CJK character plus 1.3 per
 // whitespace-separated word of other text. It is only used for budgeting.
 func EstimateTokens(s string) int {
 	cjk, words := countText(s)
 	return cjk + int(math.Ceil(float64(words)*1.3))
 }
 
-// ChunkSegments splits a transcript into chunks per §9.1. Segments are processed in
+// ChunkSegments splits a transcript into chunks. Segments are processed in
 // Idx order; a segment is never split, so a single segment larger than a
 // limit forms a chunk of its own. The result is a pure function of the input,
 // which keeps chunk boundaries (and the fingerprints built on them) stable.
@@ -185,7 +185,7 @@ func trailingContext(prev []app.Segment, limit int) []app.Segment {
 }
 
 // FormatTime renders a video-relative time: H:MM:SS when long (videos of an
-// hour or more), otherwise MM:SS (§9.4).
+// hour or more), otherwise MM:SS.
 func FormatTime(ms int64, long bool) string {
 	if ms < 0 {
 		ms = 0

@@ -10,7 +10,7 @@ var (
 	fenceRe = regexp.MustCompile("(?s)```[A-Za-z0-9_-]*[ \t]*\r?\n(.*?)\r?\n?[ \t]*```")
 )
 
-// stripThink removes reasoning blocks some models emit inline (§9.8). A block
+// stripThink removes reasoning blocks some models emit inline. A block
 // that is never closed has no usable answer after it, so it is dropped whole.
 func stripThink(s string) string {
 	s = thinkRe.ReplaceAllString(s, "")
@@ -30,7 +30,7 @@ func stripThink(s string) string {
 }
 
 // stripCodeFence returns the body of the first Markdown code fence when the
-// text contains one, otherwise the trimmed text (§9.8).
+// text contains one, otherwise the trimmed text.
 func stripCodeFence(s string) string {
 	s = strings.TrimSpace(s)
 	if m := fenceRe.FindStringSubmatch(s); m != nil {
@@ -45,7 +45,7 @@ func stripCodeFence(s string) string {
 	return s
 }
 
-// CleanContent applies the §9.8 clean-up to raw model text: <think> blocks and
+// CleanContent applies the clean-up to raw model text: <think> blocks and
 // Markdown code fences are removed. Response.Content is already cleaned; this
 // is exported for callers that hold raw text from elsewhere.
 func CleanContent(s string) string { return stripCodeFence(stripThink(s)) }

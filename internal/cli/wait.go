@@ -12,7 +12,7 @@ import (
 // poll immediately without a new revision.
 const minPollInterval = 200 * time.Millisecond
 
-// waitJob long-polls GetJob (wait_seconds ≤ 30 with after_rev, §13.2) until
+// waitJob long-polls GetJob (wait_seconds ≤ 30 with after_rev) until
 // the job is terminal or timeout elapses (0 = no limit). onUpdate is called
 // for every new revision. timedOut is true when the job was still active at
 // the deadline; the last known job is returned in every case.
@@ -94,13 +94,13 @@ func (c *call) progressPrinter() func(*app.Job) {
 	}
 }
 
-// waitFailure maps the outcome of a wait to the §13.4 exit codes: failed → 8,
+// waitFailure maps the outcome of a wait to the exit codes: failed → 8,
 // cancelled → 9, still running at the deadline → 11. It returns nil when the
 // job succeeded.
 //
 // With --json the error object is accompanied by the job itself under
-// "job". cancelled and "still running" are job states, not error codes
-// (§7.7), so they are reported as CONFLICT with details.job_status; the exit
+// "job". cancelled and "still running" are job states, not error codes,
+// so they are reported as CONFLICT with details.job_status; the exit
 // code is what distinguishes them.
 func waitFailure(job *app.Job, timedOut bool) *failure {
 	extra := map[string]any{"job": job}
@@ -139,7 +139,7 @@ func waitFailure(job *app.Job, timedOut bool) *failure {
 		return &failure{err: detail(e), exit: app.ExitJobCancelled, extra: extra}
 	default:
 		// interrupted: the engine stopped while the job was running; it
-		// resumes on the next engine start (§7.6).
+		// resumes on the next engine start.
 		e := app.E(app.CodeEngineUnavailable, "Engine 已停止，任务被中断").
 			WithHint("任务会在 Engine 下次启动时自动续跑；用 `watchink jobs get " + job.JobID + "` 查看")
 		return &failure{err: detail(e), exit: app.ExitEngine, extra: extra}

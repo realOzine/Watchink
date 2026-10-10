@@ -121,7 +121,7 @@ func (e *env) cmdImport() *cobra.Command {
 			}
 
 			var fail *failure
-			// already_processed is success and has nothing to wait for (§7.5).
+			// already_processed is success and has nothing to wait for.
 			if waitSet && resp.Status != app.ImportStatusAlreadyProcessed && resp.JobID != "" {
 				ctx, cancel := c.reqCtx()
 				job, err := r.GetJob(ctx, app.GetJobRequest{JobID: resp.JobID})
@@ -255,7 +255,7 @@ func (e *env) cmdJobs() *cobra.Command {
 			ndjson := follow && c.jsonMode
 			onUpdate := c.progressPrinter()
 			if ndjson {
-				// §13.4: the one exception to "one JSON value" — one Job
+				// the one exception to "one JSON value" — one Job
 				// per line whenever rev changes.
 				onUpdate = func(j *app.Job) { _ = writeJSON(c.out, j) }
 			}

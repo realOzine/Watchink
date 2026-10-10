@@ -1,5 +1,5 @@
-// Package asr turns a 16 kHz mono WAV into timed transcript segments
-// (docs/v0.md §8.2, D-07). The only engine in v0 is whisper.cpp's whisper-cli,
+// Package asr turns a 16 kHz mono WAV into timed transcript segments.
+// The only engine in v0 is whisper.cpp's whisper-cli,
 // run as one child process per transcription through an injected procx
 // runner. Post-processing of the raw segments is a pure function.
 package asr
@@ -11,11 +11,11 @@ import (
 	"watchink/internal/procx"
 )
 
-// PromptZH is the initial prompt used for Chinese audio (§8.2). English, and
+// PromptZH is the initial prompt used for Chinese audio. English, and
 // every other language, gets no prompt.
 const PromptZH = "以下是普通话课程的转写，使用简体中文和标点。"
 
-// MaxThreads caps the default thread count (§8.2).
+// MaxThreads caps the default thread count.
 const MaxThreads = 8
 
 // Runner is the part of *procx.Runner this package needs.
@@ -44,7 +44,7 @@ type DetectRequest struct {
 type Request struct {
 	// Audio is the 16 kHz mono WAV.
 	Audio string
-	// Language is the spoken language code, e.g. "zh" or "en" (§8.2 step 1:
+	// Language is the spoken language code, e.g. "zh" or "en" (
 	// resolved by configuration or DetectLanguage before transcribing).
 	Language string
 	// Threads <= 0 means DefaultThreads().
@@ -77,11 +77,11 @@ type Result struct {
 	Language string `json:"language"`
 	// Segments are the unprocessed segments; feed them to PostProcess.
 	Segments []RawSegment `json:"segments"`
-	// RawJSONPath is the engine's own output file, kept as is (§8.2).
+	// RawJSONPath is the engine's own output file, kept as is.
 	RawJSONPath string `json:"raw_json_path"`
 }
 
-// PromptFor returns the default initial prompt for a language (§8.2): the
+// PromptFor returns the default initial prompt for a language: the
 // fixed Mandarin prompt for Chinese, nothing otherwise.
 func PromptFor(lang string) string {
 	if strings.EqualFold(strings.TrimSpace(lang), "zh") {
@@ -90,7 +90,7 @@ func PromptFor(lang string) string {
 	return ""
 }
 
-// DefaultThreads is the §8.2 default: the number of physical cores, at most 8.
+// DefaultThreads is the default: the number of physical cores, at most 8.
 func DefaultThreads() int {
 	n := physicalCores()
 	if n < 1 {

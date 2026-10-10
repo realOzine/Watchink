@@ -21,7 +21,7 @@ type Note struct {
 	LLMProvider    string
 	LLMModel       string
 	PromptVersion  string
-	Coverage       json.RawMessage // §9.6, "{}" when empty
+	Coverage       json.RawMessage // coverage metadata, "{}" when empty
 	CreatedByJob   string
 	CreatedAt      string
 }

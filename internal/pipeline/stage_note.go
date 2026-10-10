@@ -16,7 +16,7 @@ import (
 	"watchink/internal/store"
 )
 
-// The three note stages follow D-09: note_map asks the model for points per
+// The three note stages: note_map asks the model for points per
 // transcript chunk, note_reduce asks it to organise the points, note_render
 // is pure code that validates the citations and writes the note.
 
@@ -58,7 +58,7 @@ func (p *Pipeline) segments(ctx context.Context, transcriptID string) ([]app.Seg
 }
 
 func (p *Pipeline) llmClient(sc *jobs.StageContext) (llm.Client, error) {
-	// D-18: every model request takes a slot of the global llm semaphore.
+	// every model request takes a slot of the global llm semaphore.
 	cfg := LLMConfig(p.cfg(), func(ctx context.Context) (func(), error) {
 		return sc.Acquire(ctx, jobs.ResourceLLM)
 	})
@@ -93,7 +93,7 @@ func (p *Pipeline) noteMap(ctx context.Context, sc *jobs.StageContext) (*jobs.St
 	if a := p.cached(ctx, sc, store.KindMapChunk, fp, true); a != nil {
 		return reused(a), nil
 	}
-	// §7.5: without a configured model the job fails here at once instead
+	// without a configured model the job fails here at once instead
 	// of sitting in running.
 	client, err := p.llmClient(sc)
 	if err != nil {
@@ -128,7 +128,7 @@ func (p *Pipeline) noteMap(ctx context.Context, sc *jobs.StageContext) (*jobs.St
 			return r
 		},
 		// Each finished chunk is registered right away so an interrupted
-		// or failed job resumes from the chunks it already has (§7.6).
+		// or failed job resumes from the chunks it already has.
 		OnResult: func(i int, r *notes.ChunkResult) error {
 			_, err := p.putJSON(ctx, v.ID, store.KindMapChunk, chunkFP[i], path.Join(dir, chunkFP[i]+".json"), r)
 			tick()

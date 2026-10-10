@@ -1,5 +1,5 @@
 // Package llm is the OpenAI-compatible Chat Completions client used for note
-// generation (docs/v0.md D-08, §9.8). It is written directly on net/http so
+// generation. It is written directly on net/http so
 // that the exact request shape stays under our control: compatible endpoints
 // differ a lot in how tolerant they are of extra fields.
 package llm
@@ -22,7 +22,7 @@ import (
 	"watchink/internal/app"
 )
 
-// Structured-output levels (llm.structured_output, §9.8).
+// Structured-output levels (llm.structured_output).
 const (
 	LevelAuto       = "auto"
 	LevelJSONSchema = "json_schema"
@@ -30,7 +30,7 @@ const (
 	LevelPrompt     = "prompt"
 )
 
-// Provider is the only provider name of v0 (D-08).
+// Provider is the only provider name of v0.
 const Provider = "openai-compatible"
 
 // FinishLength is the finish_reason of an output cut off by max_tokens.
@@ -75,7 +75,7 @@ type Usage struct {
 // Response is a completed chat completion.
 type Response struct {
 	// Content is the assistant text with <think>…</think> blocks removed and,
-	// for schema requests, Markdown code fences stripped (§9.8).
+	// for schema requests, Markdown code fences stripped.
 	Content      string
 	FinishReason string
 	Usage        Usage
@@ -120,7 +120,7 @@ type Config struct {
 	Warn func(msg string)
 
 	// MaxAttempts is the total number of attempts for retryable failures;
-	// 0 means 5 (§9.8).
+	// 0 means 5.
 	MaxAttempts int
 	// RetryBaseDelay is the first backoff delay; 0 means 1 s. Tests shrink it.
 	RetryBaseDelay time.Duration
@@ -227,7 +227,7 @@ func sleepCtx(ctx context.Context, d time.Duration) error {
 }
 
 // levelCache remembers, per (base_url, model), the structured-output level the
-// endpoint accepted, for the lifetime of the process (§9.8).
+// endpoint accepted, for the lifetime of the process.
 var levelCache = struct {
 	sync.Mutex
 	m map[string]string
@@ -296,7 +296,7 @@ func (c *client) Complete(ctx context.Context, req Request) (*Response, error) {
 		}
 		if cerr.kind == kindFormat && i+1 < len(levels) {
 			// The endpoint rejected this response_format: degrade, and cache
-			// the result so later calls skip the rejected level (§9.8).
+			// the result so later calls skip the rejected level.
 			rememberLevel(c.cacheKey, levels[i+1])
 			continue
 		}
@@ -426,7 +426,7 @@ func schemaInstruction(s *Schema) string {
 	return "\n\n只输出一个 JSON 对象，不要输出解释、前后缀或 Markdown 代码围栏。JSON 必须符合下面的 JSON Schema：\n" + string(s.Schema)
 }
 
-// doWithRetry performs the request with the §9.8 retry policy and returns the
+// doWithRetry performs the request with the retry policy and returns the
 // number of attempts made.
 func (c *client) doWithRetry(ctx context.Context, body []byte, t *tuning) (*Response, *callErr, int) {
 	var last *callErr

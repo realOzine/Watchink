@@ -61,7 +61,7 @@ export function ImportDialog({ open, onClose }: { open: boolean; onClose: () => 
         action: { label: zh.errors.goSettings, to: '/settings' },
       });
     }
-    // §7.5: a previous failed / cancelled job is returned as-is, never retried silently.
+    // a previous failed / cancelled job is returned as-is, never retried silently.
     if (canRetryJob(res.status)) {
       setPrevious(res);
       setPhase({ kind: 'idle' });

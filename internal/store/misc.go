@@ -8,12 +8,12 @@ import (
 	"watchink/internal/app"
 )
 
-// Upload is a row of the uploads table: a staged Web upload (§6.2).
+// Upload is a row of the uploads table: a staged Web upload.
 type Upload struct {
 	ID         string
 	Filename   string
 	SizeBytes  int64
-	SampleHash string // sampled hash of §6.6, the basis of the source_key
+	SampleHash string // sampled hash, the basis of the source_key
 	Path       string // relative to the data dir: uploads/<id>.part
 	ExpiresAt  string
 	ConsumedBy string // video ID once imported, "" before
@@ -166,8 +166,8 @@ func (q *Queries) GetExport(ctx context.Context, id string) (*Export, error) {
 	return e, nil
 }
 
-// ChildProcess is a row of the child_processes table (§5.5): a running
-// external tool, recorded so a restarted engine can find leftovers (§7.6).
+// ChildProcess is a row of the child_processes table: a running
+// external tool, recorded so a restarted engine can find leftovers.
 type ChildProcess struct {
 	PID       int
 	JobID     string

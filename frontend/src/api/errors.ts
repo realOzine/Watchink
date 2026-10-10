@@ -1,6 +1,6 @@
 import type { Error as WireError } from './types';
 
-/** A failed API call, carrying the engine's error object (docs/v0.md §7.7). */
+/** A failed API call, carrying the engine's error object. */
 export class ApiError extends Error {
   readonly code: string;
   readonly status: number;

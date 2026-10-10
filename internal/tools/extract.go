@@ -156,7 +156,7 @@ func writeNewFile(path string, r io.Reader, mode os.FileMode) (string, int64, er
 	n, err := io.Copy(io.MultiWriter(f, h), r)
 	if err == nil {
 		// OpenFile's mode is filtered by the umask; the executable bit must
-		// not depend on it (§11.3 step 4).
+		// not depend on it (step 4).
 		err = f.Chmod(mode)
 	}
 	if err == nil {

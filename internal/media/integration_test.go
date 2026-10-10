@@ -128,7 +128,7 @@ func TestIntegrationProbe(t *testing.T) {
 func TestIntegrationExtractAudioAndOffset(t *testing.T) {
 	e := newFFEnv(t)
 
-	// Audio delayed by 0.5 s against the video: the offset §8.1 must report.
+	// Audio delayed by 0.5 s against the video: the offset must report.
 	delayed := e.gen("delayed.mkv", cat(video("320x240", "4"), []string{"-itsoffset", "0.5"}, tone("3"), h264, aac)...)
 	info := e.probe(delayed)
 	if off := TimelineOffsetMs(info); !near(off, 500, 30) {
@@ -296,7 +296,7 @@ func TestIntegrationPlaybackPlans(t *testing.T) {
 			if again := PlanPlayback(out, tc.maxHeight); again.Kind != PlaybackDirect {
 				t.Errorf("generated file is not directly playable: %+v", again)
 			}
-			// Timeline preserved (§10.1): the audio/video start relation of
+			// Timeline preserved: the audio/video start relation of
 			// the source survives, so a transcript offset computed from the
 			// source also fits the playback file.
 			srcRel := relStartMs(src)

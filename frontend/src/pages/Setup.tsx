@@ -11,7 +11,7 @@ import s from './pages.module.css';
 
 const t = zh.setup;
 
-/** First-run wizard (§14.1). Every step can be skipped; nothing here is mandatory. */
+/** First-run wizard. Every step can be skipped; nothing here is mandatory. */
 export function SetupPage() {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);

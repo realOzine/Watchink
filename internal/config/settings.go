@@ -18,13 +18,13 @@ import (
 	"watchink/internal/app"
 )
 
-// SettingsFileName is the settings file inside the data dir (§12).
+// SettingsFileName is the settings file inside the data dir.
 const SettingsFileName = "config.toml"
 
 // SettingsFile returns <data>/config.toml.
 func SettingsFile(dataDir string) string { return filepath.Join(dataDir, SettingsFileName) }
 
-// Load returns the defaults of §12 overlaid by <data>/config.toml. A missing
+// Load returns the defaults overlaid by <data>/config.toml. A missing
 // file yields the defaults; unknown keys are ignored so that a config written
 // by a newer build still loads; a file that is not valid TOML or that holds an
 // invalid value is INVALID_ARGUMENT naming the file.
@@ -210,10 +210,10 @@ func oneOf(v string, allowed ...string) bool {
 	return false
 }
 
-// Validate checks every setting against §12 and returns INVALID_ARGUMENT
+// Validate checks every setting against and returns INVALID_ARGUMENT
 // naming the first offending key (in details.key as well).
 func Validate(s app.Settings) error {
-	// 0 lets the OS pick a port; §12 already falls back to a random port
+	// 0 lets the OS pick a port; already falls back to a random port
 	// when the configured one is taken.
 	if s.Engine.Port < 0 || s.Engine.Port > 65535 {
 		return invalid("engine.port", "端口必须在 0–65535 之间")

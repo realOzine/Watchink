@@ -11,7 +11,7 @@ import (
 	"watchink/internal/tools"
 )
 
-// GetSettings implements app.Service; credentials are write-only (D-14).
+// GetSettings implements app.Service; credentials are write-only.
 func (s *Service) GetSettings(context.Context) (*app.Settings, error) {
 	cfg := s.Settings()
 	config.Describe(&cfg)
@@ -19,7 +19,7 @@ func (s *Service) GetSettings(context.Context) (*app.Settings, error) {
 }
 
 // PatchSettings implements app.Service. The engine is the only writer of
-// config.toml while it runs (§12), and a change applies at once.
+// config.toml while it runs, and a change applies at once.
 func (s *Service) PatchSettings(ctx context.Context, patch map[string]any) (*app.Settings, error) {
 	s.mu.Lock()
 	next, err := config.ApplyPatch(s.settings, patch)
@@ -124,7 +124,7 @@ func (s *Service) PrepareTools(ctx context.Context, req app.PrepareToolsRequest)
 	return &j, nil
 }
 
-// UpdateTool implements app.Service (v0: yt-dlp only, §11.5).
+// UpdateTool implements app.Service (v0: yt-dlp only).
 func (s *Service) UpdateTool(ctx context.Context, name string) (*app.ToolsStatus, error) {
 	if name != tools.ToolYtDlp {
 		return nil, app.E(app.CodeInvalidArgument, "v0 只支持更新 yt-dlp")
@@ -135,7 +135,7 @@ func (s *Service) UpdateTool(ctx context.Context, name string) (*app.ToolsStatus
 	return s.GetTools(ctx)
 }
 
-// ImportTool implements app.Service (§11.4).
+// ImportTool implements app.Service.
 func (s *Service) ImportTool(ctx context.Context, req app.ToolImportRequest) (*app.ToolsStatus, error) {
 	if req.Name == "" || req.Path == "" {
 		return nil, app.E(app.CodeInvalidArgument, "name 和 path 不能为空")

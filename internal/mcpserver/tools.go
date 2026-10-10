@@ -13,7 +13,7 @@ import (
 	"watchink/internal/app"
 )
 
-// Tool names (§13.5, contract).
+// Tool names (contract).
 const (
 	ToolImportVideo   = "import_video"
 	ToolGetJob        = "get_job"
@@ -75,7 +75,7 @@ type ExportNoteInput struct {
 	Inline  *bool  `json:"inline,omitempty"`
 }
 
-// NoteOutput is the output of get_note (§13.5).
+// NoteOutput is the output of get_note.
 type NoteOutput struct {
 	NoteID     string         `json:"note_id"`
 	Title      string         `json:"title"`
@@ -87,7 +87,7 @@ type NoteOutput struct {
 	Coverage   app.Coverage   `json:"coverage"`
 }
 
-// TranscriptOutput is the output of get_transcript (§13.5).
+// TranscriptOutput is the output of get_transcript.
 type TranscriptOutput struct {
 	TranscriptID string        `json:"transcript_id"`
 	Language     string        `json:"language"`
@@ -96,7 +96,7 @@ type TranscriptOutput struct {
 	NextStartMs  *int64        `json:"next_start_ms"`
 }
 
-// ExportOutput is the output of export_note (§13.5).
+// ExportOutput is the output of export_note.
 type ExportOutput struct {
 	Path     string  `json:"path"`
 	Filename string  `json:"filename"`
@@ -108,7 +108,7 @@ type ExportOutput struct {
 func boolPtr(b bool) *bool { return &b }
 
 // addTool registers a typed tool. Business errors become isError results
-// carrying the §7.7 error object; successful outputs are returned by the SDK
+// carrying the error object; successful outputs are returned by the SDK
 // as structuredContent plus the same JSON as a text block.
 func addTool[In any](s *mcp.Server, t *mcp.Tool, fn func(ctx context.Context, in In) (any, error)) {
 	mcp.AddTool(s, t, func(ctx context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
@@ -129,7 +129,7 @@ func registerTools(s *mcp.Server, b *bridge) {
 			"Importing the same video again does not create a duplicate: it returns the existing job, or status \"already_processed\" with note_id when the note already exists.",
 		InputSchema:  importInput,
 		OutputSchema: importSchema,
-		// Idempotent thanks to dedup (§7.5); it reaches out to video sites.
+		// Idempotent thanks to dedup; it reaches out to video sites.
 		Annotations: &mcp.ToolAnnotations{Title: "Import a video", IdempotentHint: true, DestructiveHint: boolPtr(false), OpenWorldHint: boolPtr(true)},
 	}, func(ctx context.Context, in ImportVideoInput) (any, error) {
 		src, err := importSource(in.Source)
@@ -312,7 +312,7 @@ func registerTools(s *mcp.Server, b *bridge) {
 const maxInlineBytes = 4 * app.DefaultMaxChars
 
 // readInline reads an export through OpenExport and reports whether it is
-// valid text under the default max_chars (§13.1).
+// valid text under the default max_chars.
 func readInline(ctx context.Context, r app.Remote, exportID string) (string, bool, error) {
 	body, _, err := r.OpenExport(ctx, exportID)
 	if err != nil {
@@ -348,7 +348,7 @@ func jobCall(ctx context.Context, b *bridge, fn func(r app.Remote) (*app.Job, er
 
 // importSource turns the `source` argument into an import source: an
 // http(s) URL, or an absolute local path. Unlike the CLI there is no
-// meaningful working directory, so relative paths are rejected (§13.5).
+// meaningful working directory, so relative paths are rejected.
 func importSource(source string) (app.ImportSource, error) {
 	source = strings.TrimSpace(source)
 	if source == "" {

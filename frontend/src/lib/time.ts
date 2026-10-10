@@ -1,6 +1,6 @@
 /**
  * Formats a video-relative time. Videos of one hour or more use `H:MM:SS`,
- * shorter ones `MM:SS` (docs/v0.md §9.4), so pass the video duration.
+ * shorter ones `MM:SS`, so pass the video duration.
  */
 export function formatMs(ms: number, durationMs?: number | null): string {
   const safe = Number.isFinite(ms) && ms > 0 ? ms : 0;

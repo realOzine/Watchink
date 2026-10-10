@@ -1,8 +1,7 @@
-# macOS arm64: build, test and package Watchink on a GitHub runner
-# (docs/v0.md §16.2, §16.3).
+# macOS arm64: build, test and package Watchink on a GitHub runner.
 #
-# macOS is the platform the project is developed and verified on by hand
-# (docs/spikes/v0-p0.md); this workflow repeats the automated part of that on
+# macOS is the platform the project is developed and verified on by hand;
+# this workflow repeats the automated part of that on
 # a clean machine: the Go suite with the race detector, the frontend tests,
 # the browser end-to-end tests against the mock engine, and the release zip.
 name: macos
@@ -97,7 +96,7 @@ jobs:
           app=dist/Watchink.app/Contents/MacOS/Watchink
           file "$app"
           codesign --verify --deep --strict dist/Watchink.app
-          # The executable inside the bundle is the CLI as well (D-02).
+          # The executable inside the bundle is the CLI as well.
           "$app" version
           export WATCHINK_DATA_DIR="$RUNNER_TEMP/data" WATCHINK_CONFIG_DIR="$RUNNER_TEMP/cfg"
           "$app" doctor || true

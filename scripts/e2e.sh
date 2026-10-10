@@ -6,7 +6,7 @@
 #     extraction and the --version smoke test of ffmpeg, ffprobe, yt-dlp, deno
 #   - the embedded static whisper-cli and CPU transcription
 #   - the whole pipeline: local file -> transcript -> note -> export
-#   - S-08: cancel stops the child process; killing the engine with SIGKILL
+#   - cancel stops the child process; killing the engine with SIGKILL
 #     takes the child with it (Pdeathsig), and the job resumes afterwards
 #
 #   scripts/e2e.sh <watchink binary>
@@ -91,7 +91,7 @@ done
 FF_VERSION="$("$DATA/tools/bin/ffmpeg" -hide_banner -version)"
 FF_ENCODERS="$("$DATA/tools/bin/ffmpeg" -hide_banner -encoders 2>/dev/null)"
 head -n 1 <<<"$FF_VERSION"
-grep -q libx264 <<<"$FF_ENCODERS" || fail "ffmpeg has no libx264 (the playback transcode needs it, §11.2)"
+grep -q libx264 <<<"$FF_ENCODERS" || fail "ffmpeg has no libx264 (the playback transcode needs it)"
 
 step "speech sample"
 TEXT="Today we look at binary search. Binary search needs a sorted array. Each step compares the middle element and drops half of the range. That is why its running time is logarithmic. Watch the boundary conditions, or the loop never ends. To sum up, binary search fits static sorted data."
@@ -124,7 +124,7 @@ grep -q "wk://seg/" "$WORK/note.md" || { cat "$WORK/note.md" >&2; fail "the note
 echo "transcript: $(grep -c -- '-->' "$WORK/t.srt") segments; note: $(wc -l <"$WORK/note.md" | tr -d ' ') lines, $(grep -o 'wk://seg/' "$WORK/note.md" | wc -l | tr -d ' ') citations"
 "$BIN" videos list --json | json '"video: %s playback_ready=%s duration_ms=%s" % (j["videos"][0]["status"], j["videos"][0]["playback_ready"], j["videos"][0]["duration_ms"])'
 
-step "S-08: cancel stops the child"
+step "cancel stops the child"
 # Without --wait the answer is the import result itself, not a job object.
 JOB="$("$BIN" import "$WORK/long.wav" --lang en --json | json '(j.get("job") or j)["job_id"]')"
 wait_for 300 job_in_transcribe "$JOB" || fail "job $JOB never reached transcription: $("$BIN" jobs get "$JOB" --json)"
@@ -134,7 +134,7 @@ wait_for 15 job_status_is "$JOB" cancelled || fail "job $JOB not cancelled withi
 wait_for 5 whisper_gone || fail "whisper-cli still running after the cancel: $(whisper_pids)"
 echo "cancelled; no whisper-cli left"
 
-step "S-08: SIGKILL of the engine takes the child with it"
+step "SIGKILL of the engine takes the child with it"
 "$BIN" jobs retry "$JOB" >/dev/null
 wait_for 300 job_in_transcribe "$JOB" || fail "retried job $JOB never reached transcription"
 ENGINE_PID="$("$BIN" engine status --json | json 'j["engine"]["pid"]')"

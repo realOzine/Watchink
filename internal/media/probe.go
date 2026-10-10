@@ -1,5 +1,5 @@
 // Package media wraps the media tools (ffprobe, ffmpeg, yt-dlp) and the
-// source-identification rules of docs/v0.md §6.6, §8.1, §10.1 and §11.5.
+// source-identification rules (URL normalization and dedup keys).
 // It never creates processes itself: every tool runs through an injected
 // Runner (procx), and tool paths are plain strings supplied by the caller.
 package media
@@ -225,7 +225,8 @@ func parseSeconds(s string) (float64, bool) {
 
 func secToMs(sec float64) int64 { return int64(math.Round(sec * 1000)) }
 
-// TimelineOffsetMs implements §8.1:
+// TimelineOffsetMs is how far the audio track starts after the container
+// does; transcript times are shifted by it so they match the player:
 //
 //	timeline_offset_ms = round((audio stream start_time − container start_time) × 1000)
 //

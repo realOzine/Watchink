@@ -55,7 +55,7 @@ func (e *env) cmdSetup() *cobra.Command {
 	}
 	cmd.RunE = e.run(func(c *call) error {
 		flags := cmd.Flags()
-		// §13.4: questions are only asked on an interactive terminal without
+		// questions are only asked on an interactive terminal without
 		// --json; stdin is not a prompt source when it carries the API key.
 		interactive := c.isTerminal() && !c.jsonMode && !keyStdin
 

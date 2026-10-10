@@ -218,7 +218,7 @@ func yesNo(b bool) string {
 	return "否"
 }
 
-// printJob renders a job with its stage list (§13.4 human mode).
+// printJob renders a job with its stage list (human mode).
 func printJob(w io.Writer, j *app.Job) {
 	pairs := [][2]string{
 		{"任务", j.JobID},

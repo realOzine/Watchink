@@ -15,7 +15,7 @@ import (
 	"watchink/internal/webui"
 )
 
-// webView is the `doctor` probe of the system WebView (§16.3).
+// webView is the `doctor` probe of the system WebView.
 var webView = desktop.SystemWebView
 
 // runDesktop opens the Wails window. It must run on the main goroutine.
@@ -28,8 +28,8 @@ var runDesktop = func(_ context.Context, dataDir string) error {
 	})
 }
 
-// desktopPrereqs hands `doctor` the system libraries the window needs
-// (§16.3); the list is empty on macOS.
+// desktopPrereqs hands `doctor` the system libraries the window needs;
+// the list is empty on macOS.
 var desktopPrereqs = func() []cli.SystemPrereq {
 	var out []cli.SystemPrereq
 	for _, r := range sysreq.Desktop() {

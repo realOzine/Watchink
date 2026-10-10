@@ -1,4 +1,4 @@
-/** Every user-facing string of the UI. v0 ships Simplified Chinese only (§14.2). */
+/** Every user-facing string of the UI. v0 ships Simplified Chinese only. */
 export const zh = {
   app: {
     name: 'Watchink',

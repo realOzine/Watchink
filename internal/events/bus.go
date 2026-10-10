@@ -1,5 +1,5 @@
 // Package events is the in-memory event bus behind GET /api/v1/events
-// (docs/v0.md §13.3): a ring buffer of the most recent events for replay
+// : a ring buffer of the most recent events for replay
 // after a reconnect, and a non-blocking fan-out to live subscribers.
 package events
 
@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	// DefaultCapacity is the number of events kept for replay (§13.3).
+	// DefaultCapacity is the number of events kept for replay.
 	DefaultCapacity = 1000
 	// DefaultSubscriberQueue is how many undelivered live events one
 	// subscriber may accumulate before it is dropped.
@@ -165,7 +165,7 @@ func (b *Bus) dropLocked(s *subscriber) {
 	}
 }
 
-// Subscribers returns the number of live subscribers (idle exit, §5.4).
+// Subscribers returns the number of live subscribers (idle exit).
 func (b *Bus) Subscribers() int {
 	b.mu.Lock()
 	defer b.mu.Unlock()

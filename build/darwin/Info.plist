@@ -41,7 +41,7 @@
     <key>NSSupportsAutomaticGraphicsSwitching</key>
     <true/>
     <!--
-      D-04 / S-04: the page is served from wails://wails and calls the engine
+      the page is served from wails://wails and calls the engine
       at http://127.0.0.1:<port>. Only loopback / local-network cleartext is
       allowed; arbitrary http loads stay blocked.
     -->

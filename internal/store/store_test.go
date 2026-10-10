@@ -270,7 +270,7 @@ func TestListVideosPagination(t *testing.T) {
 	}
 }
 
-// importOnce is the §7.5 flow reduced to its transactional core.
+// importOnce is the flow reduced to its transactional core.
 func importOnce(ctx context.Context, s *Store, key string) (videoID, jobID string, created bool, err error) {
 	err = s.Write(ctx, func(tx *Tx) error {
 		v, err := tx.FindVideoBySourceKey(ctx, key)

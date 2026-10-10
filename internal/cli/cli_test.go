@@ -128,7 +128,7 @@ func (h *harness) withExport(body string) {
 }
 
 // TestJSONContract runs every client command with --json and checks the
-// §13.4 rules: exit 0, exactly one JSON value on stdout, silent stderr.
+// rules: exit 0, exactly one JSON value on stdout, silent stderr.
 func TestJSONContract(t *testing.T) {
 	file := writeTemp(t, "a.mp4", "x")
 	cases := []struct {
@@ -279,7 +279,7 @@ func TestErrorCodeToExitCode(t *testing.T) {
 				t.Errorf("exit = %d, want %d", res.code, app.ExitCode(code))
 			}
 			if w, ok := want[code]; ok && res.code != w {
-				t.Errorf("exit = %d, want %d per §13.4", res.code, w)
+				t.Errorf("exit = %d, want %d", res.code, w)
 			}
 			v := oneJSON(t, res.out)
 			if errCode(t, v) != string(code) {

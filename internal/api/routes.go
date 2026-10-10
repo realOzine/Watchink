@@ -25,7 +25,7 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-// writeError writes the {"error":{…}} envelope of §7.7 with the status that
+// writeError writes the {"error":{…}} envelope with the status that
 // the contract assigns to the code.
 func writeError(w http.ResponseWriter, err error) {
 	e := app.AsError(err)
@@ -106,7 +106,7 @@ func (p *params) int64Ptr(name string) *int64 {
 	return &n
 }
 
-// limit applies §13.1: default 20, at most 100.
+// limit applies the paging rule: default 20, at most 100.
 func (p *params) limit() int {
 	n := p.int("limit", app.DefaultLimit)
 	if n < 1 {
@@ -514,7 +514,7 @@ func (h *Handler) patchSettings(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s)
 }
 
-// setSecret is write-only (D-14): the value is never echoed back.
+// setSecret is write-only: the value is never echoed back.
 func (h *Handler) setSecret(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Value string `json:"value"`
@@ -608,7 +608,7 @@ func (h *Handler) importTool(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, res)
 }
 
-// media serves the playback file (§10.2). The signed `mt` token is the only
+// media serves the playback file. The signed `mt` token is the only
 // credential: <video> elements cannot send an Authorization header, and the
 // desktop WebView has no session cookie. The service validates the token.
 func (h *Handler) media(w http.ResponseWriter, r *http.Request) {

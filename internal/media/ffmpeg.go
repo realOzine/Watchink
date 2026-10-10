@@ -11,7 +11,7 @@ import (
 	"watchink/internal/procx"
 )
 
-// PlaybackKind is the §10.1 decision for a source file.
+// PlaybackKind is the decision for a source file.
 type PlaybackKind string
 
 const (
@@ -24,7 +24,7 @@ const (
 	// PlaybackFullTranscode: encode to H.264 (height-capped) plus AAC.
 	PlaybackFullTranscode PlaybackKind = "full-transcode"
 
-	// DefaultPlaybackMaxHeight is the D-11 height cap.
+	// DefaultPlaybackMaxHeight is the height cap.
 	DefaultPlaybackMaxHeight = 720
 )
 
@@ -60,7 +60,7 @@ func hasFormat(info *ProbeInfo, names ...string) bool {
 	return false
 }
 
-// PlanPlayback applies the §10.1 table:
+// PlanPlayback applies the table:
 //
 //	MP4/MOV/M4V + H.264 + AAC/MP3   → direct
 //	other container, same codecs    → remux
@@ -122,11 +122,11 @@ func PlanPlayback(info *ProbeInfo, maxHeight int) Plan {
 // playbackArgs builds the ffmpeg arguments for a plan. No option that shifts
 // timestamps (-ss, -itsoffset, -copyts, -start_at_zero, -avoid_negative_ts,
 // setpts…) may ever be added here: citations rely on the playback file
-// keeping the source timeline (§10.1, S-11).
+// keeping the source timeline.
 func playbackArgs(plan Plan, src, tmp string) []string {
 	args := []string{"-nostdin", "-hide_banner", "-y", "-i", src}
 	// The same streams the rest of the pipeline uses: the first real video
-	// stream (V excludes cover art) and the first audio stream (§8.1).
+	// stream (V excludes cover art) and the first audio stream.
 	if plan.HasVideo {
 		args = append(args, "-map", "0:V:0")
 	} else {
@@ -174,7 +174,7 @@ func BuildPlayback(ctx context.Context, runner Runner, ffmpegPath string, plan P
 	return runFFmpeg(ctx, runner, ffmpegPath, playbackArgs(plan, src, tmp), tmp, dst, app.StagePlayback, durationMs, progress)
 }
 
-// extractAudioArgs is the §8.1 command; -progress/-nostats only add machine
+// extractAudioArgs is the command; -progress/-nostats only add machine
 // readable progress and -f wav is needed because the temp name ends in .tmp.
 func extractAudioArgs(src, tmp string) []string {
 	return []string{
@@ -185,7 +185,7 @@ func extractAudioArgs(src, tmp string) []string {
 }
 
 // ExtractAudio writes the first audio stream of src as 16 kHz mono PCM WAV to
-// dst (§8.1), via dst+".tmp" and a rename. progress receives values in [0,1].
+// dst, via dst+".tmp" and a rename. progress receives values in [0,1].
 func ExtractAudio(ctx context.Context, runner Runner, ffmpegPath, src, dst string, durationMs int64, progress func(float64)) error {
 	tmp := dst + ".tmp"
 	return runFFmpeg(ctx, runner, ffmpegPath, extractAudioArgs(src, tmp), tmp, dst, app.StageExtractAudio, durationMs, progress)

@@ -85,7 +85,7 @@ func (p *Pipeline) extractAudio(ctx context.Context, sc *jobs.StageContext) (*jo
 	if a := p.cached(ctx, sc, store.KindAudio, fp, false); a != nil {
 		return reused(a), nil
 	}
-	// The WAV is deleted after a successful transcription (§6.2). When the
+	// The WAV is deleted after a successful transcription. When the
 	// transcript it produced is still valid, the purged row is enough: the
 	// transcribe stage will hit its own cache and never open the file.
 	if !sc.IgnoreCache && opt.ReprocessFrom != jobs.ReprocessTranscribe {
@@ -146,7 +146,7 @@ func (p *Pipeline) playback(ctx context.Context, sc *jobs.StageContext) (*jobs.S
 	meta, _ := json.Marshal(PlaybackMeta{Kind: string(plan.Kind), Mime: plan.Mime})
 	art := &store.Artifact{VideoID: sc.VideoID(), Kind: store.KindPlayback, Fingerprint: fp, Meta: meta}
 	if !plan.NeedsBuild() {
-		// §10.1: a directly playable source is served as is.
+		// a directly playable source is served as is.
 		art.Path, art.SHA256, art.SizeBytes = src.Path, src.SHA256, src.SizeBytes
 	} else {
 		ffmpeg, err := p.tools.Path(tools.ToolFFmpeg)

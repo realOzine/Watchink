@@ -1,6 +1,6 @@
 //go:build desktop
 
-// Package desktop is the Wails v2 shell (docs/v0.md D-03, D-04, §13.6): one
+// Package desktop is the Wails v2 shell: one
 // window that loads the embedded SPA and six bindings for native
 // capabilities. All business calls go from the WebView straight to the
 // engine's HTTP API; this package depends only on internal/app.
@@ -29,7 +29,7 @@ import (
 	"watchink/internal/app"
 )
 
-// Window geometry: the default fits the player + notes layout of §14.1, the
+// Window geometry: the default fits the player + notes layout, the
 // minimum keeps both columns usable.
 const (
 	windowTitle   = "Watchink"
@@ -58,7 +58,7 @@ type Options struct {
 	// empty means os.Executable().
 	Executable string
 	// Reveal shows a path in the platform file manager. It is injected
-	// because only internal/procx may start processes (§4.3).
+	// because only internal/procx may start processes.
 	Reveal func(path string) error
 	// Logger receives shell and Wails diagnostics; nil discards them.
 	Logger *slog.Logger
@@ -66,7 +66,7 @@ type Options struct {
 
 // Run opens the desktop window and blocks until it is closed. It must be
 // called from the main goroutine. Closing the window only ends this process;
-// the engine keeps running until its jobs finish and it idles out (§5.4).
+// the engine keeps running until its jobs finish and it idles out.
 func Run(opts Options) error {
 	if opts.Assets == nil {
 		return errors.New("desktop: Options.Assets is required")

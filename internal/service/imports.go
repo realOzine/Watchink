@@ -16,7 +16,7 @@ import (
 	"watchink/internal/store"
 )
 
-// uploadTTL is how long a staged upload waits for its import (§6.2).
+// uploadTTL is how long a staged upload waits for its import.
 const uploadTTL = 24 * time.Hour
 
 // resolved is an import source after validation and normalization.
@@ -27,7 +27,7 @@ type resolved struct {
 
 // Import implements app.Service: validate the request, turn the source into
 // a dedup key, then — in one write transaction — either answer from what the
-// library already has (§7.5) or create the video and its job.
+// library already has or create the video and its job.
 func (s *Service) Import(ctx context.Context, req app.ImportRequest) (*app.ImportResponse, error) {
 	if err := validateImport(req); err != nil {
 		return nil, err
@@ -81,7 +81,7 @@ func (s *Service) Import(ctx context.Context, req app.ImportRequest) (*app.Impor
 		s.publishVideo(resp.VideoID)
 	}
 	if !pipeline.LLMConfigured(s.Settings()) {
-		// §7.5: the import is accepted; the job fails fast at note_map.
+		// the import is accepted; the job fails fast at note_map.
 		resp.Warnings = append(resp.Warnings, app.WarnModelNotConfigured)
 	}
 	return resp, nil
@@ -101,7 +101,7 @@ func validateImport(req app.ImportRequest) error {
 	return nil
 }
 
-// answerFromExisting applies the repeat-import table of §7.5 to a video that
+// answerFromExisting applies the repeat-import table to a video that
 // is already in the library. It fills resp and reports true when no new job
 // is needed: the video has an active job, or (without reprocess_from) it has
 // been processed before, whatever the outcome.
@@ -112,7 +112,7 @@ func answerFromExisting(ctx context.Context, tx *store.Tx, v *store.Video, repro
 		resp.NoteID = &id
 	}
 	// At most one active job per video, checked inside the import
-	// transaction (§6.4).
+	// transaction.
 	active, err := tx.ActiveJobOfVideo(ctx, v.ID)
 	if err != nil {
 		return false, err
@@ -166,7 +166,7 @@ func (s *Service) resolveSource(ctx context.Context, in app.ImportSource) (*reso
 			return nil, err
 		}
 		if ref.NeedsResolve {
-			// b23.tv short links are resolved synchronously (§6.6).
+			// b23.tv short links are resolved synchronously.
 			if ref, err = media.ResolveShortLink(ctx, pipeline.HTTPClient(s.Settings().Network.Proxy), in.URL); err != nil {
 				return nil, err
 			}

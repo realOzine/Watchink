@@ -1,6 +1,6 @@
 // Package app defines the use-case interface and the DTOs shared by every
 // entry point (HTTP API, CLI, MCP, desktop). The JSON shapes declared here are
-// the v0 contract described in docs/v0.md §7.7 and §13; no other package may
+// the contract between the engine and its clients; no other package may
 // define wire types.
 package app
 
@@ -10,7 +10,7 @@ import (
 	"net/http"
 )
 
-// Code is a stable machine-readable error code (docs/v0.md §7.7, contract).
+// Code is a stable machine-readable error code (contract).
 type Code string
 
 const (
@@ -52,7 +52,8 @@ type codeInfo struct {
 	exitCode   int
 }
 
-// codeTable mirrors the tables in docs/v0.md §7.7 (flags) and §13.4 (exit codes).
+// codeTable is the contract for every code: whether a retry can help,
+// whether the user has to act first, the HTTP status and the CLI exit code.
 var codeTable = map[Code]codeInfo{
 	CodeInvalidArgument:       {false, true, http.StatusBadRequest, 2},
 	CodeNotFound:              {false, true, http.StatusNotFound, 3},
@@ -177,7 +178,7 @@ func HTTPStatus(code Code) int {
 	return http.StatusInternalServerError
 }
 
-// CLI exit codes (docs/v0.md §13.4, contract).
+// CLI exit codes (contract).
 const (
 	ExitOK           = 0
 	ExitInternal     = 1

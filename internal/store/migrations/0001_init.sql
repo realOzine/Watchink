@@ -1,10 +1,10 @@
--- Schema v1 (docs/v0.md §6.4). Additive over the spec: jobs.result and the
--- secondary indexes at the bottom.
+-- Schema version 1: every table of a data directory, with the secondary
+-- indexes at the bottom.
 
 CREATE TABLE videos (
   id TEXT PRIMARY KEY,
   source_type TEXT NOT NULL,              -- file / upload / youtube / bilibili
-  source_key TEXT NOT NULL UNIQUE,        -- dedup key (§6.6)
+  source_key TEXT NOT NULL UNIQUE,        -- dedup key
   source_uri TEXT,
   title TEXT NOT NULL,
   duration_ms INTEGER,

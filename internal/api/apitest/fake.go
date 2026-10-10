@@ -24,7 +24,7 @@ type Call struct {
 
 // Fake is a small but behaving app.Local: imports create videos and jobs,
 // jobs long-poll on rev, exports and uploads keep their bytes, and events go
-// through a bounded replay buffer like the real engine's (§13.3).
+// through a bounded replay buffer like the real engine's.
 //
 // Seed data through the exported fields before use, or with the helper
 // methods at any time. All methods are safe for concurrent use.
@@ -920,7 +920,7 @@ func (f *Fake) ImportTool(_ context.Context, req app.ToolImportRequest) (*app.To
 	return nil, notFound("工具", req.Name)
 }
 
-// Subscribe implements app.Service with the replay semantics of §13.3:
+// Subscribe implements app.Service with the replay semantics:
 // events after afterID are replayed when still buffered; otherwise (or when
 // afterID is ahead of this run) reset is true and only new events follow.
 func (f *Fake) Subscribe(ctx context.Context, afterID int64) (<-chan app.Event, bool, error) {

@@ -22,7 +22,7 @@ func TestNormalizeURL(t *testing.T) {
 		wantCode  app.Code
 		wantShort bool
 	}{
-		// YouTube forms (§6.6).
+		// YouTube forms.
 		{in: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", wantKey: "youtube:dQw4w9WgXcQ", wantURL: yt, wantPID: "dQw4w9WgXcQ", wantType: app.SourceYouTube},
 		{in: "http://youtube.com/watch?v=dQw4w9WgXcQ&list=PL123&index=4&t=42s", wantKey: "youtube:dQw4w9WgXcQ", wantURL: yt},
 		{in: "https://www.youtube.com/watch?list=PL123&v=dQw4w9WgXcQ", wantKey: "youtube:dQw4w9WgXcQ", wantURL: yt},

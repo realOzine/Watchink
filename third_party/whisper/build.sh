@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Builds a static whisper-cli from the whisper.cpp release pinned in VERSION
-# and installs it, with its sha256, where internal/tools embeds it from
-# (docs/v0.md D-06, §16.1).
+# and installs it, with its sha256, where internal/tools embeds it from.
 #
 #   third_party/whisper/build.sh <os> <arch>      e.g. build.sh darwin arm64
 #
@@ -184,7 +183,7 @@ build_linux_amd64() {
     rm -rf "$BUILD_DIR"
   fi
 
-  # CPU only (docs/v0.md §1: no GPU acceleration on Linux in v0).
+  # CPU only (no GPU acceleration on Linux in v0).
   # - BUILD_SHARED_LIBS=OFF: libwhisper and ggml are linked into the binary.
   # - CMAKE_EXE_LINKER_FLAGS=-static: the binary also carries glibc and
   #   libstdc++, so it does not depend on the glibc version of the build host.
@@ -270,8 +269,8 @@ build_windows_amd64() {
   # CPU-only build with MSVC (the default generator is the newest Visual
   # Studio; -A picks the 64-bit toolset).
   # - CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded: static C/C++ runtime (/MT), so
-  #   the binary runs on a machine without the Visual C++ redistributable
-  #   (§16.1). whisper.cpp asks for CMake 3.5 behaviour, under which that
+  #   the binary runs on a machine without the Visual C++ redistributable.
+  #   whisper.cpp asks for CMake 3.5 behaviour, under which that
   #   variable is ignored, hence CMAKE_POLICY_DEFAULT_CMP0091=NEW.
   # - GGML_NATIVE=OFF plus an explicit instruction set: the baseline is a CPU
   #   with AVX2 / FMA / F16C / BMI2 (Intel Haswell 2013, AMD Excavator 2015 and

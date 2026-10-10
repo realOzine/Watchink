@@ -644,7 +644,7 @@ func TestRetry(t *testing.T) {
 }
 
 // A succeeded stage whose artifact is gone is rerun on retry, but only when
-// a stage that is going to run needs it (§7.3 "产物仍然有效").
+// a stage that is going to run needs it (retry skips only stages whose artifact is still valid).
 func TestRetryRevivesStagesWithMissingArtifacts(t *testing.T) {
 	h := newHarness(t, Options{})
 	ctx := context.Background()
@@ -1235,7 +1235,7 @@ func TestNewJobInsideCallerTransaction(t *testing.T) {
 		t.Fatalf("rolled-back job exists: %d active", n)
 	}
 
-	// The §7.5 flow from many goroutines: one video, one active job.
+	// The flow from many goroutines: one video, one active job.
 	const n = 16
 	ids := make(chan string, n)
 	var wg sync.WaitGroup
@@ -1430,7 +1430,7 @@ func TestStopLeavesNoGoroutines(t *testing.T) {
 }
 
 func TestToDTO(t *testing.T) {
-	// The process_video weights of §7.2 (local file: acquire weighs 2).
+	// The process_video weights (local file: acquire weighs 2).
 	defs := []StageDef{
 		{Name: app.StageEnsureTools, Weight: 2},
 		{Name: app.StageAcquire, Weight: 2},

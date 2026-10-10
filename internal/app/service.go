@@ -14,7 +14,7 @@ import (
 type Service interface {
 	EngineInfo(ctx context.Context) (*EngineInfo, error)
 
-	// Import applies the dedup policy of docs/v0.md §7.5 and returns at once.
+	// Import applies the dedup policy and returns at once.
 	Import(ctx context.Context, req ImportRequest) (*ImportResponse, error)
 	// CreateUpload stores a raw byte stream as a pending upload (Web import).
 	// size may be -1 when unknown.
@@ -74,17 +74,17 @@ type PlaybackFile struct {
 type Local interface {
 	Service
 
-	// OpenPlayback validates the signed media token (§10.2) and opens the
+	// OpenPlayback validates the signed media token and opens the
 	// playback file of the video.
 	OpenPlayback(ctx context.Context, videoID, mediaToken string) (*PlaybackFile, error)
 	// WebEnabled reports whether the optional browser UI is switched on
 	// (settings web.enabled). While it is off, only bearer-token clients
 	// (desktop, CLI, MCP) may use the HTTP API.
 	WebEnabled() bool
-	// ActiveJobs counts queued + running + cancelling jobs (idle exit, §5.4).
+	// ActiveJobs counts queued + running + cancelling jobs (idle exit).
 	ActiveJobs(ctx context.Context) (int, error)
 	// Stop stops accepting work and interrupts running stages; force kills
-	// child processes immediately instead of waiting up to 10 s (§5.4).
+	// child processes immediately instead of waiting up to 10 s.
 	Stop(ctx context.Context, force bool) error
 }
 
@@ -98,7 +98,7 @@ type Remote interface {
 	Close() error
 }
 
-// ConnectOptions controls engine discovery (docs/v0.md §5.2).
+// ConnectOptions controls engine discovery.
 type ConnectOptions struct {
 	// DataDir is the --data-dir flag value; empty means resolve by
 	// WATCHINK_DATA_DIR, location.toml, then the platform default.

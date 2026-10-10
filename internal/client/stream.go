@@ -54,7 +54,7 @@ func (c *Client) openEvents(ctx context.Context, afterID int64) (*eventStream, e
 	return &eventStream{resp: resp, cancel: cancel, reset: resp.Header.Get(api.HeaderStreamReset) == "1"}, nil
 }
 
-// Subscribe implements app.Service over the event stream (§13.3). The
+// Subscribe implements app.Service over the event stream. The
 // returned channel is closed when ctx is done, after engine.stopping, or
 // when the engine stays unreachable. A dropped connection is re-established
 // transparently with Last-Event-ID; if the engine then reports that the
@@ -171,7 +171,7 @@ func (c *Client) readEvents(ctx context.Context, st *eventStream, first bool, la
 	}
 }
 
-// decodeEvent rebuilds an app.Event from the bare payload of §13.3.
+// decodeEvent rebuilds an app.Event from the bare payload.
 func decodeEvent(id, typ, data string) (app.Event, bool) {
 	ev := app.Event{Type: typ}
 	if id != "" {

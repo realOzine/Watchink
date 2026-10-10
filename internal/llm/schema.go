@@ -10,7 +10,7 @@ import (
 
 // SchemaFor generates a JSON Schema from a Go struct value (or pointer), so
 // the schema sent to the model and the type the answer is decoded into cannot
-// drift apart (§9.2).
+// drift apart.
 //
 // Field names come from the json tag; `desc:"…"` becomes the description and
 // `enum:"a,b"` an enum. Every field is required and additionalProperties is

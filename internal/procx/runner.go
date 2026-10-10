@@ -1,5 +1,5 @@
-// Package procx is the only package allowed to create child processes
-// (docs/v0.md §4.3, §5.5). It runs external tools from an argv array (never
+// Package procx is the only package allowed to create child processes.
+// It runs external tools from an argv array (never
 // through a shell), puts every child in its own process group (a Job Object on
 // Windows) so that a cancel reaches the whole tree, keeps the last 64 KiB of
 // stderr (redacted) for error details, and — on macOS — wraps children in the
@@ -23,9 +23,9 @@ import (
 )
 
 const (
-	// StderrTailBytes is how much of a child's stderr is kept (§5.5).
+	// StderrTailBytes is how much of a child's stderr is kept.
 	StderrTailBytes = 64 << 10
-	// DefaultTermGrace is the delay between SIGTERM and SIGKILL (§5.5).
+	// DefaultTermGrace is the delay between SIGTERM and SIGKILL.
 	DefaultTermGrace = 3 * time.Second
 	// GuardSubcommand is the hidden CLI subcommand that runs GuardMain.
 	GuardSubcommand = "_guard"
@@ -45,13 +45,13 @@ var ErrKilled = errors.New("procx: child force-killed")
 type Options struct {
 	// GuardExe is the path of the watchink executable. When set, every
 	// child is started as `<GuardExe> _guard -- <path> <args...>` so that it
-	// dies with the engine (§5.5, macOS). When empty the command is started
+	// dies with the engine (macOS). When empty the command is started
 	// directly, which is what tests use.
 	GuardExe string
 	// OnStart is called after a child has started. pid is the process-group
 	// leader started by the Runner and exe is that process's executable: the
 	// tool itself, or GuardExe when a guard is used. The pair is exactly what
-	// KillIfMatches needs at restart recovery (§7.6 step 3).
+	// KillIfMatches needs at restart recovery (step 3).
 	OnStart func(pid int, exe, jobID, stage string)
 	// OnExit is called once the child has been reaped and its group is gone.
 	OnExit func(pid int)
@@ -171,7 +171,7 @@ func (r *Runner) Run(ctx context.Context, c Cmd) (*Result, error) {
 		startExe = r.opts.GuardExe
 		argv = append([]string{GuardSubcommand, "--", exe}, c.Args...)
 	}
-	cmd := exec.Command(startExe, argv...) // argv array, never a shell (§5.5, §15)
+	cmd := exec.Command(startExe, argv...) // argv array, never a shell
 	cmd.Dir = c.Dir
 	cmd.Env = c.Env
 	cmd.Stdin = c.Stdin

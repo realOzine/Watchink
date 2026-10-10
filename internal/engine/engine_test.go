@@ -154,7 +154,7 @@ func TestRunLifecycleAndDiscovery(t *testing.T) {
 	before := time.Now().Add(-time.Second)
 	r := start(t, dir, nil)
 
-	// engine.json: exactly the §5.1 fields, mode 0600 (Windows has no
+	// engine.json: exactly the fields, mode 0600 (Windows has no
 	// permission bits; the file is protected by the profile directory's ACL).
 	raw, err := os.ReadFile(engine.DiscoveryPath(dir))
 	if err != nil {

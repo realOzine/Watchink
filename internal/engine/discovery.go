@@ -1,4 +1,4 @@
-// Package engine owns the engine process lifecycle (docs/v0.md §5): the
+// Package engine owns the engine process lifecycle: the
 // single-instance lock, the discovery file, the HTTP listener, idle exit,
 // graceful shutdown and the engine log. The service itself is built by the
 // caller through Options.Build.
@@ -15,7 +15,7 @@ import (
 	"github.com/gofrs/flock"
 )
 
-// Run modes (§4.2, §5.4).
+// Run modes.
 const (
 	ModeBackground = "background"
 	ModeForeground = "foreground"
@@ -23,10 +23,10 @@ const (
 
 // ErrAlreadyRunning is returned by Run when another process holds the engine
 // lock of the data directory. A spawned `engine run` that loses the start
-// race (§5.2 step 4) exits quietly on it.
+// race (step 4) exits quietly on it.
 var ErrAlreadyRunning = errors.New("engine: another engine already owns this data directory")
 
-// Discovery is the content of <data>/run/engine.json (§5.1). It only tells a
+// Discovery is the content of <data>/run/engine.json. It only tells a
 // client where the engine listens and which token to use; whether an engine
 // is alive is decided by the lock alone.
 type Discovery struct {
@@ -70,7 +70,7 @@ func ReadDiscovery(dataDir string) (*Discovery, error) {
 	return &d, nil
 }
 
-// writeDiscovery writes engine.json atomically with mode 0600 (§5.1): the
+// writeDiscovery writes engine.json atomically with mode 0600: the
 // file holds the engine token. Windows has no permission bits; there the file
 // is private because the data directory lives in the user's profile, whose
 // ACL only admits that user.

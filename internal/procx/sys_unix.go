@@ -16,7 +16,7 @@ import (
 
 // This file holds what macOS and Linux share: signalling process groups,
 // detached spawning and the argument checks of the desktop helpers. How a
-// child is tied to the engine's lifetime (§5.5) and how a pid is matched to
+// child is tied to the engine's lifetime and how a pid is matched to
 // its executable differ per platform: see sys_darwin.go and sys_linux.go.
 
 func terminateGroup(pgid int) error { return signalGroup(pgid, unix.SIGTERM) }
@@ -82,7 +82,7 @@ func killTree(pid int) (bool, error) {
 
 // SpawnDetached starts a fully detached background process: new session, no
 // controlling terminal, stdio on /dev/null. It is used to launch
-// `watchink engine run` from a client (§5.2). A nil env inherits the
+// `watchink engine run` from a client. A nil env inherits the
 // caller's environment. The process is not waited for.
 func SpawnDetached(exe string, args []string, env []string) error {
 	devnull, err := os.OpenFile(os.DevNull, os.O_RDWR, 0)
@@ -111,7 +111,7 @@ func OpenBrowser(rawURL string) error {
 
 // RevealInFileManager shows path in the platform file manager (Finder on
 // macOS). The caller is responsible for restricting path to the data
-// directory (§15).
+// directory.
 func RevealInFileManager(path string) error {
 	if !filepath.IsAbs(path) {
 		return fmt.Errorf("procx: reveal needs an absolute path")

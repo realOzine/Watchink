@@ -1,5 +1,5 @@
 // Package client implements app.Remote over the engine's HTTP API and the
-// engine discovery / spawn flow of docs/v0.md §5.2. The CLI, the MCP server
+// engine discovery / spawn flow. The CLI, the MCP server
 // and the desktop shell receive it as an app.Connector.
 package client
 
@@ -98,7 +98,7 @@ func NewWithToken(baseURL, token string) app.Remote {
 func (c *Client) BaseURL() string { return c.base }
 
 // Token returns the engine bearer token. The desktop shell hands it to its
-// WebView (§13.6 EngineInfo binding); never log it.
+// WebView through the EngineInfo binding; never log it.
 func (c *Client) Token() string { return c.token }
 
 // Close implements app.Remote.

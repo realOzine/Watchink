@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the Linux amd64 release of Watchink (docs/v0.md §16):
+# Builds the Linux amd64 release of Watchink:
 #
 #   frontend -> whisper-cli -> go build (GUI)      -> dist/watchink-<ver>-linux-amd64
 #                           -> go build (headless) -> dist/watchink-headless-<ver>-linux-amd64
@@ -20,7 +20,7 @@
 #
 # The GUI build is Wails' documented manual build: no wails CLI, just
 # `go build -tags desktop,production,webkit2_41` with cgo. The webkit2_41 tag
-# selects WebKitGTK 4.1 (libsoup 3); Ubuntu 24.04 no longer ships 4.0 (D-03).
+# selects WebKitGTK 4.1 (libsoup 3); Ubuntu 24.04 no longer ships 4.0.
 #
 # Build packages on Ubuntu 24.04:
 #   sudo apt-get install build-essential pkg-config cmake \
@@ -54,7 +54,7 @@ fi
 VERSION="${VERSION#v}"
 COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo nogit)"
 BUILD_ID="${COMMIT}-$(date -u +%Y%m%d)"
-# Clients replace an idle engine only when build_id differs (docs/v0.md §5.2).
+# Clients replace an idle engine only when build_id differs.
 # Uncommitted work would otherwise keep the id of HEAD, and a running engine
 # would go on serving the previous build's embedded web UI after a rebuild.
 if [[ "$COMMIT" != nogit ]] && [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
@@ -99,7 +99,7 @@ build_desktop() {
   CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
     go build -tags desktop,production,webkit2_41 -trimpath -ldflags "$LDFLAGS" -o "$DIST/$GUI_BIN" "$MAIN_PKG"
   chmod 755 "$DIST/$GUI_BIN"
-  # The same file must work as CLI without a display (S-03): `version` does
+  # The same file must work as CLI without a display: `version` does
   # not touch GTK, so this also runs on a build machine without a session.
   env -u DISPLAY -u WAYLAND_DISPLAY "$DIST/$GUI_BIN" version >/dev/null || die "the built $GUI_BIN does not run"
   BUILT+=("$GUI_BIN")

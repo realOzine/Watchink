@@ -11,7 +11,7 @@ const t = zh.video;
 const NOTE_FORMATS = ['md', 'md-raw', 'json'];
 const TRANSCRIPT_FORMATS = ['srt', 'vtt', 'txt'];
 
-/** md / md-raw / json need a note; srt / vtt / txt need a transcript (§9.7). */
+/** md / md-raw / json need a note; srt / vtt / txt need a transcript. */
 export function ExportMenu({ videoId, hasNote, hasTranscript }: { videoId: string; hasNote: boolean; hasTranscript: boolean }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);

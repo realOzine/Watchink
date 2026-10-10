@@ -12,7 +12,7 @@ import (
 	"watchink/internal/app"
 )
 
-// EnvLLMAPIKey has the highest priority among the API key sources (D-14).
+// EnvLLMAPIKey has the highest priority among the API key sources.
 const EnvLLMAPIKey = "WATCHINK_LLM_API_KEY"
 
 // SecretsFileName is the secrets file inside the user config dir.
@@ -26,7 +26,7 @@ const (
 )
 
 // Secrets is the content of <cfg>/secrets.toml. It lives outside the data
-// dir so that it never ends up in a backup or an export (D-14).
+// dir so that it never ends up in a backup or an export.
 type Secrets struct {
 	LLMAPIKey string
 }
@@ -131,7 +131,7 @@ func SetSecret(name, value string) error {
 	return nil
 }
 
-// ResolveLLMAPIKey returns the API key and where it came from, in the D-14
+// ResolveLLMAPIKey returns the API key and where it came from, in
 // priority order: WATCHINK_LLM_API_KEY ("env"), then the variable named
 // by llm.api_key_env ("env:<NAME>"), then secrets.toml ("file"). Both results
 // are empty when no key is configured.
@@ -155,7 +155,7 @@ func ResolveLLMAPIKey(s app.Settings) (key, source string) {
 const last4MinKeyLen = 12
 
 // Describe fills the read-only fields of s: the credential state
-// (api_key_configured / api_key_last4 / api_key_source, D-14: never the key
+// (api_key_configured / api_key_last4 / api_key_source: never the key
 // itself), config_dir, and data_dir when it is still empty (Load sets it).
 func Describe(s *app.Settings) {
 	key, source := ResolveLLMAPIKey(*s)

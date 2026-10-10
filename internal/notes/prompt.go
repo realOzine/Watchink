@@ -12,7 +12,7 @@ import (
 	"watchink/internal/llm"
 )
 
-// Prompt templates are embedded; v0 has no user-defined templates (§9.8).
+// Prompt templates are embedded; v0 has no user-defined templates.
 // Any change to them must bump PromptVersion.
 //
 //go:embed prompts/*.tmpl
@@ -48,7 +48,7 @@ type callStats struct {
 	promptTokens, completionTokens int
 }
 
-// ask performs one completion and maps both "too large" conditions of §9.2 to
+// ask performs one completion and maps both "too large" conditions to
 // errNeedSplit.
 func ask(ctx context.Context, c llm.Client, st *callStats, system, user string, schema *llm.Schema, maxTokens int) (string, error) {
 	st.calls++
@@ -68,7 +68,7 @@ func ask(ctx context.Context, c llm.Client, st *callStats, system, user string, 
 }
 
 // decodeJSON strictly decodes one JSON object. Content has already lost code
-// fences and <think> blocks (§9.8); as a last tolerance for prompt-only mode,
+// fences and <think> blocks; as a last tolerance for prompt-only mode,
 // text around the outermost braces is ignored.
 func decodeJSON(content string, v any) error {
 	content = strings.TrimSpace(content)
@@ -86,7 +86,7 @@ func decodeJSON(content string, v any) error {
 }
 
 // askJSON asks for a JSON object of type T, with one repair call when the
-// answer cannot be decoded (the reduce-side counterpart of the §9.2 rule).
+// answer cannot be decoded (the reduce-side counterpart of the rule).
 func askJSON[T any](ctx context.Context, c llm.Client, st *callStats, system, user string, schema *llm.Schema, maxTokens int) (*T, error) {
 	content, err := ask(ctx, c, st, system, user, schema, maxTokens)
 	if err != nil {

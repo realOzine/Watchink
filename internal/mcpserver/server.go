@@ -1,5 +1,5 @@
 // Package mcpserver implements `watchink mcp`: an MCP stdio server that
-// bridges the eight v0 tools (docs/v0.md §13.5, D-12) to the engine.
+// bridges the eight v0 tools to the engine.
 //
 // The package depends on internal/app only; the engine is reached through an
 // injected app.Connector.
@@ -20,14 +20,14 @@ import (
 	"watchink/internal/version"
 )
 
-// ServerName is the MCP implementation name (§13.5, contract).
+// ServerName is the MCP implementation name (contract).
 const ServerName = "watchink"
 
 // requester is recorded as jobs.requested_by for imports made through MCP.
 const requester = "mcp"
 
 // Instructions is sent to clients at initialization. English, because it is
-// part of the agent-facing contract (§13.5).
+// part of the agent-facing contract.
 const Instructions = `Watchink turns lecture videos (local files, YouTube or Bilibili links) into transcripts and structured notes whose statements cite transcript segments.
 
 Standard flow:
@@ -81,7 +81,7 @@ func newServer(opts Options) (*mcp.Server, *bridge) {
 		&mcp.ServerOptions{
 			Instructions: Instructions,
 			Logger:       opts.Logger,
-			// Tools only (D-12): no resources, prompts or logging capability.
+			// Tools only: no resources, prompts or logging capability.
 			Capabilities: &mcp.ServerCapabilities{},
 		},
 	)
@@ -92,7 +92,7 @@ func newServer(opts Options) (*mcp.Server, *bridge) {
 
 // Run serves MCP over stdin/stdout until the client disconnects or ctx is
 // cancelled. Disconnecting only closes the engine connection: submitted
-// jobs keep running in the engine (§13.5).
+// jobs keep running in the engine.
 func Run(ctx context.Context, opts Options) error {
 	if opts.Logger == nil {
 		opts.Logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
@@ -168,7 +168,7 @@ func (b *bridge) close() {
 }
 
 // do runs fn against the engine. A background engine may idle-exit while
-// the MCP process lives (§5.4), so when fn fails with ENGINE_UNAVAILABLE the
+// the MCP process lives, so when fn fails with ENGINE_UNAVAILABLE the
 // connection is rebuilt (which re-spawns the engine) and fn is retried
 // exactly once.
 func (b *bridge) do(ctx context.Context, fn func(r app.Remote) error) error {
@@ -190,7 +190,7 @@ func (b *bridge) do(ctx context.Context, fn func(r app.Remote) error) error {
 }
 
 // errorResult renders a business error as an isError tool result whose
-// content is the §7.7 error object. It is never a protocol error, so the
+// content is the error object. It is never a protocol error, so the
 // model can see it and react.
 func errorResult(err error) *mcp.CallToolResult {
 	body, merr := json.Marshal(app.ErrorEnvelope{Error: app.AsError(err)})

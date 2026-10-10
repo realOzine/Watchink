@@ -15,7 +15,7 @@ import (
 	"watchink/internal/llm"
 )
 
-// Limits of the map step (§9.2, §9.8).
+// Limits of the map step.
 const (
 	mapMaxTokens     = 2500
 	maxCitesPerPoint = 5
@@ -26,7 +26,7 @@ const (
 	smallChunkWords  = 50
 )
 
-// Point kinds (§9.2).
+// Point kinds.
 var pointKinds = []string{"concept", "definition", "method", "example", "conclusion", "caution", "other"}
 
 // MapInput is the input of one map call.
@@ -62,7 +62,7 @@ type Term struct {
 	StartMs     int64  `json:"start_ms"`
 }
 
-// ChunkStats is the per-chunk contribution to coverage (§9.6).
+// ChunkStats is the per-chunk contribution to coverage.
 type ChunkStats struct {
 	// Empty is true when the chunk legitimately produced no points.
 	Empty            bool `json:"empty"`
@@ -119,7 +119,7 @@ func (c *citeList) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// mapOutput is the model-facing schema of the map step (§9.2). The JSON
+// mapOutput is the model-facing schema of the map step. The JSON
 // Schema sent to the model is generated from these structs.
 type mapOutput struct {
 	ChunkSummary string     `json:"chunk_summary" desc:"本块主要内容，2–4 句"`
@@ -208,7 +208,7 @@ type mapProblem struct {
 	detail string
 }
 
-// validated is a chunk answer after the §9.2 validation, before ids exist.
+// validated is a chunk answer after the validation, before ids exist.
 type validated struct {
 	summary          string
 	points           []Point
@@ -245,7 +245,7 @@ func validCites(raw citeList, byIdx map[int]app.Segment, limit int) (kept []int,
 	return kept, dropped
 }
 
-// validateMap applies the §9.2 rules to one model answer.
+// validateMap applies the rules to one model answer.
 func validateMap(content string, ch Chunk) (*validated, *mapProblem) {
 	var out mapOutput
 	if err := decodeJSON(content, &out); err != nil {
@@ -296,7 +296,7 @@ func validateMap(content string, ch Chunk) (*validated, *mapProblem) {
 }
 
 // isSmallChunk reports whether the chunk has so little speech that an answer
-// without points is acceptable (§9.2).
+// without points is acceptable.
 func isSmallChunk(ch Chunk) bool {
 	cjk, words := 0, 0
 	for _, s := range ch.Segments {
@@ -368,7 +368,7 @@ func mapOnce(ctx context.Context, c llm.Client, st *callStats, in MapInput, ch C
 }
 
 // splitChunk halves a chunk at the segment boundary closest to its temporal
-// midpoint. It refuses when a half would be shorter than one minute (§9.2).
+// midpoint. It refuses when a half would be shorter than one minute.
 func splitChunk(ch Chunk) (a, b Chunk, ok bool) {
 	n := len(ch.Segments)
 	if n < 2 || ch.EndMs()-ch.StartMs() < 2*minSplitMs {
@@ -428,7 +428,7 @@ func mapPiece(ctx context.Context, c llm.Client, st *callStats, in MapInput, ch 
 	}, nil
 }
 
-// MapChunk runs the map step for one chunk (§9.2): one model call, strict
+// MapChunk runs the map step for one chunk: one model call, strict
 // validation of every citation, at most one repair call, and recursive
 // halving when the model cannot take the chunk in one piece.
 //
@@ -480,7 +480,7 @@ func MapChunk(ctx context.Context, c llm.Client, in MapInput) (*ChunkResult, err
 type MapAllOptions struct {
 	VideoTitle string
 	DurationMs int64
-	// Concurrency is the number of parallel map calls; 0 means 3 (§9.8).
+	// Concurrency is the number of parallel map calls; 0 means 3.
 	Concurrency int
 	// Cached may return an already computed result for chunk i (0-based);
 	// nil means "call the model". Used for per-chunk artifact reuse.

@@ -172,7 +172,7 @@ var (
 	tableRowRe = regexp.MustCompile(`(^|[^\\])\|`)
 )
 
-// checkMarkdownSafety asserts the §15 output rules on a canonical note: no
+// checkMarkdownSafety asserts the output rules on a canonical note: no
 // raw HTML, only wk:// and http(s) link destinations, intact table rows.
 func checkMarkdownSafety(t *testing.T, md string) {
 	t.Helper()

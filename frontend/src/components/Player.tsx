@@ -11,7 +11,7 @@ import s from './Player.module.css';
 import { Button, Spinner } from './ui';
 
 const t = zh.video;
-/** Ask for a fresh signed URL this long before the current one expires (§10.2). */
+/** Ask for a fresh signed URL this long before the current one expires. */
 const REFRESH_MARGIN_MS = 5 * 60_000;
 
 function Position({ controller, durationMs }: { controller: PlayerController; durationMs: number | null }) {

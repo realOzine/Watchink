@@ -19,7 +19,7 @@ import (
 const guardPollInterval = 250 * time.Millisecond
 
 // setProcessGroup makes the child the leader of a new process group, so one
-// signal to -pid reaches the tool and everything it spawned (§5.5).
+// signal to -pid reaches the tool and everything it spawned.
 func setProcessGroup(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 }
@@ -56,7 +56,7 @@ func processInfo(pid int) (exe string, argv []string, ok bool) {
 }
 
 // KillIfMatches kills a child left over from a previous engine, but only when
-// the process with that pid still runs the recorded executable (§7.6 step 3):
+// the process with that pid still runs the recorded executable (step 3):
 // a recycled pid must never be killed. It returns true when a kill was sent.
 //
 // Because guarded children are recorded with the watchink executable
@@ -79,7 +79,7 @@ func KillIfMatches(pid int, exe string) (bool, error) {
 }
 
 // GuardMain implements the hidden `watchink _guard [--] <path> <args...>`
-// subcommand and returns the process exit code (§5.5, macOS).
+// subcommand and returns the process exit code (macOS).
 //
 // macOS has no Pdeathsig, so the engine starts every tool through this small
 // supervisor: it runs the real command as its child inside the guard's own
@@ -142,7 +142,7 @@ func GuardMain(args []string) int {
 			if os.Getppid() == parent {
 				continue
 			}
-			// Orphaned: same escalation as a cancel (§5.5).
+			// Orphaned: same escalation as a cancel.
 			_ = signalGroup(group, unix.SIGTERM)
 			select {
 			case <-done:

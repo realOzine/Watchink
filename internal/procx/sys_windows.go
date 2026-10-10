@@ -18,7 +18,7 @@ import (
 )
 
 // Windows has neither process groups that can be signalled nor SIGTERM. The
-// "group" of a child is a Job Object (§5.5): every child is started
+// "group" of a child is a Job Object: every child is started
 // suspended, assigned to a fresh job created with KILL_ON_JOB_CLOSE, and only
 // then resumed, so nothing it spawns can escape the job. The engine holds the
 // only handle to the job: cancelling is TerminateJobObject, and when the
@@ -154,7 +154,7 @@ func resumeProcess(pid int) error {
 }
 
 // terminateGroup is the Windows half of a cancel. There is no SIGTERM to
-// send, so the polite step and the forceful one are the same call (§5.5).
+// send, so the polite step and the forceful one are the same call.
 func terminateGroup(pid int) error { return killGroup(pid) }
 
 // killGroup terminates every process in the child's job. A pid without a job
@@ -224,7 +224,7 @@ func samePath(a, b string) bool {
 }
 
 // KillIfMatches kills a child left over from a previous engine, but only when
-// the process with that pid still runs the recorded executable (§7.6 step 3):
+// the process with that pid still runs the recorded executable (step 3):
 // a recycled pid must never be killed. It returns true when a kill was sent.
 //
 // KILL_ON_JOB_CLOSE normally leaves nothing to find here. A process running
@@ -264,7 +264,7 @@ func KillIfMatches(pid int, exe string) (bool, error) {
 }
 
 // GuardMain is the `_guard` subcommand, which only exists on macOS. Windows
-// does not wrap children: their Job Object dies with the engine (§5.5).
+// does not wrap children: their Job Object dies with the engine.
 func GuardMain(args []string) int {
 	fmt.Fprintln(os.Stderr, "watchink _guard is only available on macOS")
 	return 2
@@ -272,13 +272,13 @@ func GuardMain(args []string) int {
 
 // SpawnDetached starts a fully detached background process: no console, its
 // own process group (so a Ctrl+C in the caller's console does not reach it),
-// stdio on NUL. It is used to launch `watchink engine run` from a client
-// (§5.2). A nil env inherits the caller's environment. The process is not
+// stdio on NUL. It is used to launch `watchink engine run` from a client.
+// A nil env inherits the caller's environment. The process is not
 // waited for.
 //
 // A client may itself run inside a job that kills its members when the
 // client's host exits (terminals and MCP hosts do this), and the engine must
-// outlive its clients (D-01). So the engine is first started outside that
+// outlive its clients. So the engine is first started outside that
 // job; hosts that forbid breaking away make CreateProcess fail with
 // ERROR_ACCESS_DENIED, in which case it is started inside the job after all.
 func SpawnDetached(exe string, args []string, env []string) error {
@@ -326,7 +326,7 @@ func OpenBrowser(rawURL string) error {
 }
 
 // RevealInFileManager selects path in Explorer. The caller is responsible for
-// restricting path to the data directory (§15).
+// restricting path to the data directory.
 func RevealInFileManager(path string) error {
 	if !filepath.IsAbs(path) {
 		return fmt.Errorf("procx: reveal needs an absolute path")

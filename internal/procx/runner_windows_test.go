@@ -308,7 +308,7 @@ func TestKillJobAndKillAll(t *testing.T) {
 	waitGone(t, "job_b grandchild", func() bool { return pidAlive(pidB) }, 2*time.Second)
 }
 
-// §5.5: when the engine dies without cleaning up, the system closes its job
+// when the engine dies without cleaning up, the system closes its job
 // handles and KILL_ON_JOB_CLOSE takes the children with it.
 func TestJobDiesWithItsOwner(t *testing.T) {
 	cmd := exec.Command(selfExe(t))

@@ -124,7 +124,7 @@ func New(opts Options) *Scheduler {
 	return s
 }
 
-// Start begins scheduling. Run store.Recover first (§5.3, §7.6): Start does
+// Start begins scheduling. Run store.Recover first: Start does
 // not repair states left by a crashed engine. Values of ctx are passed on to
 // the stages; its cancellation is ignored — use Stop.
 func (s *Scheduler) Start(ctx context.Context) error {
@@ -172,7 +172,7 @@ func (s *Scheduler) isStopping() bool {
 // Acquire blocks until a slot of the resource is free (or ctx is done) and
 // returns the function that gives it back; release is idempotent. Unlimited
 // resources return at once. Stages of resource "llm" use it to gate each
-// model request on the global limit (D-18).
+// model request on the global limit.
 func (s *Scheduler) Acquire(ctx context.Context, resource string) (release func(), err error) {
 	sem := s.sems[resource]
 	if sem == nil {
@@ -270,8 +270,8 @@ func (s *Scheduler) deliver(job app.Job) {
 	}
 }
 
-// schedule starts every stage that can run now: jobs in creation order
-// (D-18), stages in definition order, bounded by the resource semaphores.
+// schedule starts every stage that can run now: jobs in creation order,
+// stages in definition order, bounded by the resource semaphores.
 func (s *Scheduler) schedule() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -398,7 +398,7 @@ func (rs *runStage) run(ctx context.Context, sc *StageContext) {
 	rs.s.stageDone(rs, res, err)
 }
 
-// safeRun turns a panic in a stage into an INTERNAL error (§7.7).
+// safeRun turns a panic in a stage into an INTERNAL error.
 func safeRun(ctx context.Context, def *StageDef, sc *StageContext) (res *StageResult, err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -441,7 +441,7 @@ func (s *Scheduler) stageDone(rs *runStage, res *StageResult, err error) {
 		u.Event = &store.EventInput{Type: "stage.succeeded", Data: map[string]any{"stage": name, "reused": res.Reused}}
 	case rs.asked && s.stopping && !rj.cancelling && rj.failErr == nil:
 		// Interrupted by shutdown: back to pending so the next engine run
-		// resumes it (§5.4), exactly like the crash recovery of §7.6.
+		// resumes it, exactly like the crash recovery.
 		u.Stages = []store.StagePatch{{Stage: name, Status: ptr(app.StagePending), Progress: ptr(0.0),
 			StartedAt: ptr(""), FinishedAt: ptr("")}}
 		u.Event = &store.EventInput{Type: "stage.interrupted", Data: map[string]any{"stage": name}}
@@ -453,7 +453,7 @@ func (s *Scheduler) stageDone(rs *runStage, res *StageResult, err error) {
 		u.Stages = []store.StagePatch{{Stage: name, Status: ptr(app.StageFailed), Error: ae, FinishedAt: &now}}
 		u.Job.Error = ae
 		u.Event = &store.EventInput{Type: "stage.failed", Data: map[string]any{"stage": name, "code": ae.Code}}
-		// §7: no further stages start, and the siblings are asked to stop;
+		// no further stages start, and the siblings are asked to stop;
 		// the job turns failed once they have (settle).
 		rj.failErr = ae
 		rj.ask()

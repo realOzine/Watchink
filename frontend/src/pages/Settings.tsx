@@ -40,7 +40,7 @@ function AsrForm({ settings }: { settings: Settings }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<unknown>(null);
 
-  // ASR models are the manifest models named whisper-*; silero-vad is the VAD model (§8.3).
+  // ASR models are the manifest models named whisper-*; silero-vad is the VAD model.
   const models = (tools?.items ?? []).filter((i) => i.kind === 'model' && i.name.startsWith('whisper-'));
   const dirty = model !== settings.asr.model || language !== settings.asr.language || vad !== settings.asr.vad;
 

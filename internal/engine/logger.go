@@ -12,7 +12,7 @@ import (
 	"sync"
 )
 
-// Log rotation defaults (§6.2): rotate at 10 MiB, keep 5 files in total
+// Log rotation defaults: rotate at 10 MiB, keep 5 files in total
 // (engine.log plus engine.log.1 … engine.log.4).
 const (
 	DefaultLogMaxBytes = 10 << 20
@@ -21,7 +21,7 @@ const (
 
 const redacted = "[REDACTED]"
 
-// Redactor masks secrets in log output (§15): registered values (the engine
+// Redactor masks secrets in log output: registered values (the engine
 // token, API keys) and common credential shapes.
 type Redactor struct {
 	mu      sync.RWMutex
@@ -239,7 +239,7 @@ func (f fanout) WithGroup(name string) slog.Handler {
 	return out
 }
 
-// LoggerOptions tunes NewLogger; the zero value gives the §6.2 defaults.
+// LoggerOptions tunes NewLogger; the zero value gives the defaults.
 type LoggerOptions struct {
 	// Stderr, when set, also receives human-readable lines (foreground mode).
 	Stderr io.Writer

@@ -10,7 +10,7 @@ import (
 	"watchink/internal/app"
 )
 
-// ActiveJobStatuses are the statuses counted as "active" (§5.4, §7.5).
+// ActiveJobStatuses are the statuses counted as "active".
 var ActiveJobStatuses = []string{app.JobQueued, app.JobRunning, app.JobCancelling}
 
 // Job is a row of the jobs table.
@@ -216,7 +216,7 @@ func (q *Queries) insertEvent(ctx context.Context, jobID, at string, ev *EventIn
 // pending job_stages row per stage name in the given order, and a "created"
 // event, all in one transaction. Empty ID / timestamps are filled in.
 //
-// The "at most one active job per video" rule (§7.5) is not enforced here:
+// The "at most one active job per video" rule is not enforced here:
 // check ActiveJobOfVideo in the same Store.Write transaction.
 func (q *Queries) CreateJob(ctx context.Context, j *Job, stages []string) (*JobWithStages, error) {
 	if j.ID == "" {
@@ -374,7 +374,7 @@ func (q *Queries) ListJobs(ctx context.Context, f JobFilter) (jobs []*JobWithSta
 }
 
 // JobsByStatus returns every job in one of the statuses with its stages, in
-// creation order (oldest first) — the order the scheduler serves them (D-18).
+// creation order (oldest first) — the order the scheduler serves them.
 func (q *Queries) JobsByStatus(ctx context.Context, statuses ...string) ([]*JobWithStages, error) {
 	if len(statuses) == 0 {
 		return nil, nil
@@ -398,7 +398,7 @@ func (q *Queries) LatestJobOfVideo(ctx context.Context, videoID string) (*JobWit
 
 // LatestJobsOfVideos returns the most recently created job (without stages
 // filled) of each given video that has one, keyed by video ID. It serves
-// video listings, which derive the video status from the latest job (§13.2).
+// video listings, which derive the video status from the latest job.
 func (q *Queries) LatestJobsOfVideos(ctx context.Context, videoIDs []string) (map[string]*JobWithStages, error) {
 	out := make(map[string]*JobWithStages, len(videoIDs))
 	for chunk := range slices.Chunk(videoIDs, 500) {
@@ -416,7 +416,7 @@ func (q *Queries) LatestJobsOfVideos(ctx context.Context, videoIDs []string) (ma
 }
 
 // ActiveJobOfVideo returns the queued / running / cancelling job of the
-// video, or (nil, nil). There is at most one when imports follow §7.5.
+// video, or (nil, nil). There is at most one: Import checks for it in its transaction.
 func (q *Queries) ActiveJobOfVideo(ctx context.Context, videoID string) (*JobWithStages, error) {
 	return q.firstJob(ctx, "WHERE video_id = ? AND status IN (?,?,?) ORDER BY id DESC LIMIT 1",
 		videoID, app.JobQueued, app.JobRunning, app.JobCancelling)
@@ -429,7 +429,7 @@ func (q *Queries) ActiveJobByKind(ctx context.Context, kind string) (*JobWithSta
 		kind, app.JobQueued, app.JobRunning, app.JobCancelling)
 }
 
-// CountActiveJobs counts queued + running + cancelling jobs (§5.4).
+// CountActiveJobs counts queued + running + cancelling jobs.
 func (q *Queries) CountActiveJobs(ctx context.Context) (int, error) {
 	n, _, err := queryOne(ctx, q, func(sc scanner) (int, error) {
 		var n int
@@ -439,7 +439,7 @@ func (q *Queries) CountActiveJobs(ctx context.Context) (int, error) {
 }
 
 // UpdateJob applies u atomically: the job patch, the stage patches and the
-// optional event row, with rev = rev + 1 and a fresh updated_at (§7.3). It
+// optional event row, with rev = rev + 1 and a fresh updated_at. It
 // returns the job as it is after the change.
 //
 // Errors: NOT_FOUND for an unknown job, CONFLICT when IfStatus does not
@@ -593,7 +593,7 @@ func (r *RecoveryResult) JobIDs() []string {
 	return slices.Compact(ids)
 }
 
-// Recover performs steps 1–2 of the restart recovery (§7.6) in one
+// Recover performs steps 1–2 of the restart recovery in one
 // transaction; call it once at engine start, before the scheduler:
 //
 //  1. running stages → pending; cancelling jobs → cancelled;

@@ -13,7 +13,7 @@ import (
 
 // checkNote asserts the end-to-end guarantees of a rendered note: every
 // citation resolves, every valid point appears exactly once, and the
-// coverage numbers add up (§9.5, §9.6, V0-R05).
+// coverage numbers add up.
 func checkNote(t *testing.T, segs []app.Segment, chunks []Chunk, results []*ChunkResult, red *ReduceResult, out *Rendered) {
 	t.Helper()
 	checkPlacement(t, results, red)
@@ -170,7 +170,7 @@ func TestPropertyRandomTranscripts(t *testing.T) {
 	}
 }
 
-// TestLongLectureEndToEnd is the V0-R05 check: a 90-minute, 900-segment
+// TestLongLectureEndToEnd checks that long videos are not truncated: a 90-minute, 900-segment
 // transcript is processed chunk by chunk, with the two-level reduce, and
 // nothing is silently truncated.
 func TestLongLectureEndToEnd(t *testing.T) {

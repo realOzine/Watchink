@@ -7,140 +7,140 @@
 // source: dto.go
 
 /**
- * Job, stage and video status values (docs/v0.md §7.3, §13.2, contract).
+ * Job, stage and video status values (contract).
  */
 export const JobQueued = "queued";
 /**
- * Job, stage and video status values (docs/v0.md §7.3, §13.2, contract).
+ * Job, stage and video status values (contract).
  */
 export const JobRunning = "running";
 /**
- * Job, stage and video status values (docs/v0.md §7.3, §13.2, contract).
+ * Job, stage and video status values (contract).
  */
 export const JobCancelling = "cancelling";
 /**
- * Job, stage and video status values (docs/v0.md §7.3, §13.2, contract).
+ * Job, stage and video status values (contract).
  */
 export const JobSucceeded = "succeeded";
 /**
- * Job, stage and video status values (docs/v0.md §7.3, §13.2, contract).
+ * Job, stage and video status values (contract).
  */
 export const JobFailed = "failed";
 /**
- * Job, stage and video status values (docs/v0.md §7.3, §13.2, contract).
+ * Job, stage and video status values (contract).
  */
 export const JobCancelled = "cancelled";
 /**
- * Job, stage and video status values (docs/v0.md §7.3, §13.2, contract).
+ * Job, stage and video status values (contract).
  */
 export const JobInterrupted = "interrupted";
 /**
- * Job, stage and video status values (docs/v0.md §7.3, §13.2, contract).
+ * Job, stage and video status values (contract).
  */
 export const StagePending = "pending";
 /**
- * Job, stage and video status values (docs/v0.md §7.3, §13.2, contract).
+ * Job, stage and video status values (contract).
  */
 export const StageRunning = "running";
 /**
- * Job, stage and video status values (docs/v0.md §7.3, §13.2, contract).
+ * Job, stage and video status values (contract).
  */
 export const StageSucceeded = "succeeded";
 /**
- * Job, stage and video status values (docs/v0.md §7.3, §13.2, contract).
+ * Job, stage and video status values (contract).
  */
 export const StageFailed = "failed";
 /**
- * Job, stage and video status values (docs/v0.md §7.3, §13.2, contract).
+ * Job, stage and video status values (contract).
  */
 export const StageCancelled = "cancelled";
 /**
- * Job, stage and video status values (docs/v0.md §7.3, §13.2, contract).
+ * Job, stage and video status values (contract).
  */
 export const VideoProcessing = "processing";
 /**
- * Job, stage and video status values (docs/v0.md §7.3, §13.2, contract).
+ * Job, stage and video status values (contract).
  */
 export const VideoReady = "ready";
 /**
- * Job, stage and video status values (docs/v0.md §7.3, §13.2, contract).
+ * Job, stage and video status values (contract).
  */
 export const VideoFailed = "failed";
 /**
- * Job, stage and video status values (docs/v0.md §7.3, §13.2, contract).
+ * Job, stage and video status values (contract).
  */
 export const VideoCancelled = "cancelled";
 /**
- * Job, stage and video status values (docs/v0.md §7.3, §13.2, contract).
+ * Job, stage and video status values (contract).
  */
 export const JobKindProcessVideo = "process_video";
 /**
- * Job, stage and video status values (docs/v0.md §7.3, §13.2, contract).
+ * Job, stage and video status values (contract).
  */
 export const JobKindPrepareTools = "prepare_tools";
 /**
- * Job, stage and video status values (docs/v0.md §7.3, §13.2, contract).
+ * Job, stage and video status values (contract).
  */
 export const SourceFile = "file";
 /**
- * Job, stage and video status values (docs/v0.md §7.3, §13.2, contract).
+ * Job, stage and video status values (contract).
  */
 export const SourceUpload = "upload";
 /**
- * Job, stage and video status values (docs/v0.md §7.3, §13.2, contract).
+ * Job, stage and video status values (contract).
  */
 export const SourceURL = "url"; // import request only; stored as youtube / bilibili
 /**
- * Job, stage and video status values (docs/v0.md §7.3, §13.2, contract).
+ * Job, stage and video status values (contract).
  */
 export const SourceYouTube = "youtube";
 /**
- * Job, stage and video status values (docs/v0.md §7.3, §13.2, contract).
+ * Job, stage and video status values (contract).
  */
 export const SourceBilibili = "bilibili";
 /**
  * ImportStatusAlreadyProcessed is returned by Import when the video
- * already has a successful job (docs/v0.md §7.5).
+ * already has a successful job.
  */
 export const ImportStatusAlreadyProcessed = "already_processed";
 /**
- * Job, stage and video status values (docs/v0.md §7.3, §13.2, contract).
+ * Job, stage and video status values (contract).
  */
 export const WarnModelNotConfigured = "MODEL_NOT_CONFIGURED";
 /**
- * Stage names of a process_video job, in DAG order (docs/v0.md §7.2).
+ * Stage names of a process_video job, in DAG order.
  */
 export const StageEnsureTools = "ensure_tools";
 /**
- * Stage names of a process_video job, in DAG order (docs/v0.md §7.2).
+ * Stage names of a process_video job, in DAG order.
  */
 export const StageAcquire = "acquire";
 /**
- * Stage names of a process_video job, in DAG order (docs/v0.md §7.2).
+ * Stage names of a process_video job, in DAG order.
  */
 export const StageProbe = "probe";
 /**
- * Stage names of a process_video job, in DAG order (docs/v0.md §7.2).
+ * Stage names of a process_video job, in DAG order.
  */
 export const StageExtractAudio = "extract_audio";
 /**
- * Stage names of a process_video job, in DAG order (docs/v0.md §7.2).
+ * Stage names of a process_video job, in DAG order.
  */
 export const StageTranscribe = "transcribe";
 /**
- * Stage names of a process_video job, in DAG order (docs/v0.md §7.2).
+ * Stage names of a process_video job, in DAG order.
  */
 export const StagePlayback = "playback";
 /**
- * Stage names of a process_video job, in DAG order (docs/v0.md §7.2).
+ * Stage names of a process_video job, in DAG order.
  */
 export const StageNoteMap = "note_map";
 /**
- * Stage names of a process_video job, in DAG order (docs/v0.md §7.2).
+ * Stage names of a process_video job, in DAG order.
  */
 export const StageNoteReduce = "note_reduce";
 /**
- * Stage names of a process_video job, in DAG order (docs/v0.md §7.2).
+ * Stage names of a process_video job, in DAG order.
  */
 export const StageNoteRender = "note_render";
 /**
@@ -221,7 +221,7 @@ export interface EngineInfo {
   started_at: string;
   /**
    * ActiveJobs counts queued + running + cancelling jobs; clients use it to
-   * decide whether a mismatched engine may be shut down (§5.2).
+   * decide whether a mismatched engine may be shut down.
    */
   active_jobs: number /* int */;
   /**
@@ -352,7 +352,7 @@ export interface Job {
    */
   stage: string;
   /**
-   * Progress is the weighted overall progress in [0,1] (§7.2).
+   * Progress is the weighted overall progress in [0,1].
    */
   progress: number /* float64 */;
   stages: JobStage[];
@@ -404,7 +404,7 @@ export interface Citation {
   text: string | null;
 }
 /**
- * Coverage is the note coverage metadata (docs/v0.md §9.6).
+ * Coverage is the note coverage metadata.
  */
 export interface Coverage {
   chunks: number /* int */;
@@ -524,7 +524,7 @@ export interface Export {
   created_at: string;
 }
 /**
- * Event is one entry of the event stream (docs/v0.md §13.3). Exactly one of
+ * Event is one entry of the event stream. Exactly one of
  * Job / Video / Tools / Reason is set depending on Type.
  */
 export interface Event {
@@ -671,12 +671,12 @@ export interface LLMModelList {
 /*
 Package app defines the use-case interface and the DTOs shared by every
 entry point (HTTP API, CLI, MCP, desktop). The JSON shapes declared here are
-the v0 contract described in docs/v0.md §7.7 and §13; no other package may
+the contract between the engine and its clients; no other package may
 define wire types.
 */
 
 /**
- * Code is a stable machine-readable error code (docs/v0.md §7.7, contract).
+ * Code is a stable machine-readable error code (contract).
  */
 export type Code = string;
 export const CodeInvalidArgument: Code = "INVALID_ARGUMENT";
@@ -728,51 +728,51 @@ export interface ErrorEnvelope {
   error: Error | null;
 }
 /**
- * CLI exit codes (docs/v0.md §13.4, contract).
+ * CLI exit codes (contract).
  */
 export const ExitOK = 0;
 /**
- * CLI exit codes (docs/v0.md §13.4, contract).
+ * CLI exit codes (contract).
  */
 export const ExitInternal = 1;
 /**
- * CLI exit codes (docs/v0.md §13.4, contract).
+ * CLI exit codes (contract).
  */
 export const ExitUsage = 2;
 /**
- * CLI exit codes (docs/v0.md §13.4, contract).
+ * CLI exit codes (contract).
  */
 export const ExitNotFound = 3;
 /**
- * CLI exit codes (docs/v0.md §13.4, contract).
+ * CLI exit codes (contract).
  */
 export const ExitConflict = 4;
 /**
- * CLI exit codes (docs/v0.md §13.4, contract).
+ * CLI exit codes (contract).
  */
 export const ExitEngine = 5;
 /**
- * CLI exit codes (docs/v0.md §13.4, contract).
+ * CLI exit codes (contract).
  */
 export const ExitToolNotReady = 6;
 /**
- * CLI exit codes (docs/v0.md §13.4, contract).
+ * CLI exit codes (contract).
  */
 export const ExitConfig = 7;
 /**
- * CLI exit codes (docs/v0.md §13.4, contract).
+ * CLI exit codes (contract).
  */
 export const ExitJobFailed = 8;
 /**
- * CLI exit codes (docs/v0.md §13.4, contract).
+ * CLI exit codes (contract).
  */
 export const ExitJobCancelled = 9;
 /**
- * CLI exit codes (docs/v0.md §13.4, contract).
+ * CLI exit codes (contract).
  */
 export const ExitNetwork = 10;
 /**
- * CLI exit codes (docs/v0.md §13.4, contract).
+ * CLI exit codes (contract).
  */
 export const ExitWaitTimeout = 11;
 
@@ -781,7 +781,7 @@ export const ExitWaitTimeout = 11;
 
 /**
  * Settings is the non-secret configuration stored in <data>/config.toml and
- * exposed by GET / PATCH /api/v1/settings (docs/v0.md §12). The struct carries
+ * exposed by GET / PATCH /api/v1/settings. The struct carries
  * both TOML and JSON tags so the file and the API share one shape. Durations
  * and sizes are strings ("10m", "8GiB").
  */
@@ -824,7 +824,7 @@ export interface LLMSettings {
   timeout: string;
   max_concurrency: number /* int */;
   /**
-   * Read-only credential state (D-14: secrets are write-only).
+   * Read-only credential state (secrets are write-only).
    */
   api_key_configured: boolean;
   api_key_last4: string | null;

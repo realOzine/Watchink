@@ -358,7 +358,7 @@ func (e *env) cmdConfig() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			// §12: the engine must be stopped first, otherwise it would
+			// the engine must be stopped first, otherwise it would
 			// keep serving the old directory.
 			if c.deps.IsEngineRunning != nil && c.deps.IsEngineRunning(current) {
 				return app.E(app.CodeConflict, "Engine 正在运行，不能更改数据目录").

@@ -17,7 +17,7 @@ const (
 	authWeb    = "web"
 )
 
-// hostAllowed implements the anti DNS-rebinding rule of §15: the Host header
+// hostAllowed implements the anti DNS-rebinding rule: the Host header
 // must name the loopback listener itself.
 func (h *Handler) hostAllowed(host string) bool {
 	name, port, err := net.SplitHostPort(host)
@@ -44,7 +44,7 @@ const (
 )
 
 // cors adds the CORS response headers for an allowed WebView origin and
-// answers preflights (including Chromium's private-network preflight, D-04).
+// answers preflights (including Chromium's private-network preflight).
 // It reports whether the request was fully handled.
 func (h *Handler) cors(w http.ResponseWriter, r *http.Request) bool {
 	origin := r.Header.Get("Origin")
@@ -127,7 +127,7 @@ const webDisabledHint = "在 Watchink 桌面应用的“设置 → Web 界面”
 // authed wraps a route that needs a bearer token or, while the Web UI is
 // enabled, a same-origin browser request. A browser request that changes
 // state must also carry our own Origin and X-WK-Request: 1: a custom header
-// cannot be sent cross-site without a CORS preflight, which we refuse (§15).
+// cannot be sent cross-site without a CORS preflight, which we refuse.
 func (h *Handler) authed(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		kind := h.authenticate(r)
@@ -156,7 +156,7 @@ func (h *Handler) authed(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// track marks an authorised request for idle-exit accounting (§5.4).
+// track marks an authorised request for idle-exit accounting.
 func (h *Handler) track(fn func()) {
 	h.touch()
 	h.inflight.Add(1)

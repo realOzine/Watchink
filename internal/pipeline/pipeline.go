@@ -1,5 +1,5 @@
 // Package pipeline implements the stages of the process_video and
-// prepare_tools jobs (docs/v0.md §7.2).
+// prepare_tools jobs.
 //
 // The scheduler (internal/jobs) knows nothing about video: this package
 // gives it a list of stages per job kind (the DAG in processVideoStages) and
@@ -7,7 +7,7 @@
 //
 //  1. load its inputs: the job options and the artifacts of the stages it
 //     depends on;
-//  2. compute a fingerprint of those inputs (§7.4);
+//  2. compute a fingerprint of those inputs;
 //  3. return the registered artifact when one matches (reused);
 //  4. otherwise do the work through media / asr / llm / notes, write the
 //     result under the video's directory and register it as an artifact.
@@ -53,7 +53,7 @@ type Deps struct {
 	Runner *procx.Runner
 	Tools  *tools.Manager
 	// Settings returns the current settings snapshot; stages read it when
-	// they start so a config change applies to the next retry (§7.4).
+	// they start so a config change applies to the next retry.
 	Settings func() app.Settings
 	// VideoChanged is called after a stage changed a videos row.
 	VideoChanged func(videoID string)
@@ -88,7 +88,7 @@ func (p *Pipeline) Register(s *jobs.Scheduler) {
 	s.Register(app.JobKindPrepareTools, p.prepareToolsStages)
 }
 
-// Reprocess groups per stage (§7.5): a job with reprocess_from=X ignores the
+// Reprocess groups per stage: a job with reprocess_from=X ignores the
 // cache of every stage carrying group X.
 var (
 	groupsAcquire    = []string{jobs.ReprocessAcquire}
@@ -103,7 +103,7 @@ func (p *Pipeline) processVideoStages(job *store.Job) ([]jobs.StageDef, error) {
 			return nil, app.E(app.CodeInternal, "任务参数无法解析：%v", err)
 		}
 	}
-	// Weights of §7.2; a local file is copied, not downloaded.
+	// Weights; a local file is copied, not downloaded.
 	acquireWeight := 15.0
 	if opt.SourceType == app.SourceFile || opt.SourceType == app.SourceUpload {
 		acquireWeight = 2
@@ -149,7 +149,7 @@ func (p *Pipeline) wrap(fn jobs.StageFunc) jobs.StageFunc {
 }
 
 // Stage versions take part in the fingerprints: bump one when that stage's
-// logic changes so artifacts made by the old logic are not reused (§7.4).
+// logic changes so artifacts made by the old logic are not reused.
 const (
 	acquireVersion    = 1
 	probeVersion      = 1

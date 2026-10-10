@@ -1,5 +1,5 @@
 // Package config resolves the data and config directories and loads the
-// settings and secrets files (docs/v0.md §6.1, §12).
+// settings and secrets files.
 package config
 
 import (

@@ -14,7 +14,7 @@ import (
 type Video struct {
 	ID                  string
 	SourceType          string // file / upload / youtube / bilibili
-	SourceKey           string // dedup key (§6.6), unique
+	SourceKey           string // dedup key, unique
 	SourceURI           string
 	Title               string
 	DurationMs          *int64
@@ -186,7 +186,7 @@ func escapeLike(s string) string {
 	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
 }
 
-// Cursors are opaque to callers (§13.1): base64url of a small JSON object
+// Cursors are opaque to callers: base64url of a small JSON object
 // holding the ID of the last row of the previous page.
 type cursorPayload struct {
 	After string `json:"a"`

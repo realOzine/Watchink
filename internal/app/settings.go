@@ -1,7 +1,7 @@
 package app
 
 // Settings is the non-secret configuration stored in <data>/config.toml and
-// exposed by GET / PATCH /api/v1/settings (docs/v0.md §12). The struct carries
+// exposed by GET / PATCH /api/v1/settings. The struct carries
 // both TOML and JSON tags so the file and the API share one shape. Durations
 // and sizes are strings ("10m", "8GiB").
 type Settings struct {
@@ -45,7 +45,7 @@ type LLMSettings struct {
 	Timeout          string  `json:"timeout" toml:"timeout"`
 	MaxConcurrency   int     `json:"max_concurrency" toml:"max_concurrency"`
 
-	// Read-only credential state (D-14: secrets are write-only).
+	// Read-only credential state (secrets are write-only).
 	APIKeyConfigured bool   `json:"api_key_configured" toml:"-"`
 	APIKeyLast4      string `json:"api_key_last4,omitempty" toml:"-"`
 	// APIKeySource is env / env:<NAME> / file / "" (not configured).
@@ -89,13 +89,13 @@ type WebSettings struct {
 	Enabled bool `json:"enabled" toml:"enabled"`
 }
 
-// DefaultSettings returns the defaults listed in docs/v0.md §12.
+// DefaultSettings returns the defaults listed.
 func DefaultSettings() Settings {
 	return Settings{
 		Engine: EngineSettings{Port: DefaultEnginePort, IdleExit: "10m", AutoResume: true},
-		// VAD is off by default: S-06 measured that whisper.cpp v1.9.5 shifts
-		// the first segment after a removed silence to the start of the silence
-		// (docs/spikes/v0-p0.md), which breaks citation times.
+		// VAD is off by default: with it, whisper.cpp v1.9.5 was measured to
+		// shift the first segment after a removed silence to the start of the
+		// silence, which breaks citation times.
 		ASR: ASRSettings{Engine: "whispercpp", Language: "auto", VAD: false},
 		LLM: LLMSettings{
 			Provider: "openai-compatible", StructuredOutput: "auto",

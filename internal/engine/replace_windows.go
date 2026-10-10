@@ -18,7 +18,7 @@ const (
 
 // replaceFile renames src over dst. Unlike on Unix, Windows refuses to
 // replace a file that another process has open, and clients polling for a
-// starting engine read engine.json every 100 ms (§5.2 step 3). Each read
+// starting engine read engine.json every 100 ms (step 3). Each read
 // holds the file for well under a millisecond, so a short retry is enough.
 func replaceFile(src, dst string) error {
 	var err error

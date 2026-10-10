@@ -1,6 +1,6 @@
-// Package store owns the SQLite database and the files of a data directory
-// (docs/v0.md D-05, §6). It is the only package that imports the SQLite
-// driver (§4.3).
+// Package store owns the SQLite database and the files of a data directory.
+// It is the only package that imports the SQLite
+// driver.
 //
 // # Transactions
 //
@@ -13,7 +13,7 @@
 //   - called on a *Tx (inside Store.Write), a method takes part in the
 //     caller's transaction, so several tables can be changed atomically.
 //
-// All writes are serialized through one connection (§6.5). Consequently a
+// All writes are serialized through one connection. Consequently a
 // Store.Write callback must only use the *Tx it is given: calling a writing
 // method on the *Store from inside the callback would wait for the connection
 // the callback itself is holding (until its context expires).
@@ -24,7 +24,7 @@
 // RFC 3339 UTC strings (app.FormatTime). Get* methods return a NOT_FOUND
 // *app.Error when the row is missing; Find*, Latest*, Active* and Current*
 // methods return (nil, nil). Paths stored in the database are relative to the
-// data directory and use forward slashes (§6.2).
+// data directory and use forward slashes.
 package store
 
 import (
@@ -47,11 +47,11 @@ import (
 	"watchink/internal/app"
 )
 
-// DBFileName is the database file name inside the data directory (§6.2).
+// DBFileName is the database file name inside the data directory.
 const DBFileName = "watchink.db"
 
 // ErrSchemaTooNew is the cause of the error returned by Open when the
-// database was written by a newer program version (§6.5).
+// database was written by a newer program version.
 var ErrSchemaTooNew = errors.New("store: database schema is newer than this program supports")
 
 //go:embed migrations/*.sql
@@ -171,7 +171,7 @@ func openWith(ctx context.Context, dataDir string, migs []migration) (_ *Store, 
 	if err != nil {
 		return nil, internalErr("无法打开数据库", err)
 	}
-	// §6.5: every write goes through this one connection.
+	// every write goes through this one connection.
 	w.SetMaxOpenConns(1)
 	w.SetMaxIdleConns(1)
 	w.SetConnMaxLifetime(0)
@@ -214,7 +214,7 @@ func migrate(ctx context.Context, w *sql.DB, dbPath string, migs []migration) er
 		target = migs[len(migs)-1].version
 	}
 	if cur > target {
-		// §6.5: an old program must never touch newer data.
+		// an old program must never touch newer data.
 		e := app.E(app.CodeInternal, "数据库版本（%d）高于本程序支持的版本（%d），已拒绝打开", cur, target).
 			WithHint("请升级 Watchink 到最新版本后再使用该数据目录").
 			WithDetail("db_version", cur).WithDetail("supported_version", target).
@@ -227,7 +227,7 @@ func migrate(ctx context.Context, w *sql.DB, dbPath string, migs []migration) er
 		return nil
 	}
 	if cur > 0 {
-		// §6.5: copy the existing database aside first. VACUUM INTO produces
+		// copy the existing database aside first. VACUUM INTO produces
 		// a consistent single-file copy that includes the WAL content.
 		bak := fmt.Sprintf("%s.bak-%d", dbPath, cur)
 		if err := os.Remove(bak); err != nil && !os.IsNotExist(err) {
@@ -505,7 +505,7 @@ func anySlice[T any](in []T) []any {
 	return out
 }
 
-// clampLimit applies the pagination defaults of §13.1.
+// clampLimit applies the pagination defaults.
 func clampLimit(limit int) int {
 	if limit <= 0 {
 		return app.DefaultLimit

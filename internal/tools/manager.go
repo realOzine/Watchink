@@ -17,7 +17,7 @@ import (
 )
 
 // EnvWhisperBin overrides the embedded whisper-cli with an external
-// executable (§16.1, local development).
+// executable (local development).
 const EnvWhisperBin = "WATCHINK_WHISPER_BIN"
 
 // Well-known manifest names.
@@ -34,7 +34,7 @@ const (
 )
 
 // ExecFunc runs path with args and returns its combined output. The package
-// may not create processes itself (§4.3), so the caller injects one backed by
+// may not create processes itself, so the caller injects one backed by
 // internal/procx. It is only ever called on files that passed verification.
 type ExecFunc func(ctx context.Context, path string, args ...string) (output []byte, err error)
 
@@ -62,7 +62,7 @@ type Options struct {
 
 // Manager installs and locates tools and models under one data directory.
 // All methods are safe for concurrent use. One process is expected to own a
-// data directory (the engine, D-01).
+// data directory (the engine).
 type Manager struct {
 	dataDir  string
 	exec     ExecFunc
@@ -195,16 +195,16 @@ func (m *Manager) cleanStaging() {
 }
 
 // DefaultASRModel returns the manifest ID of the default transcription model
-// for this platform (§8.3, decided by S-06 measurements).
+// for this platform (decided by measurements).
 func (m *Manager) DefaultASRModel() string { return defaultASRModel(m.platform) }
 
 func defaultASRModel(platform string) string {
 	switch platform {
 	case "darwin-arm64":
-		// S-06 on an Apple M3 Pro with Metal: see third_party/whisper/NOTES.md.
+		// on an Apple M3 Pro with Metal: see third_party/whisper/NOTES.md.
 		return ModelLargeV3TurboQ5
 	default:
-		// TODO(windows) TODO(linux): not measured yet (S-06); CPU-only
+		// TODO(windows) TODO(linux): not measured yet; CPU-only
 		// transcription gets the small model until it is.
 		return ModelSmallQ5
 	}
@@ -212,7 +212,7 @@ func defaultASRModel(platform string) string {
 
 // Needed lists the manifest names a source of the given type requires:
 // ffmpeg, ffprobe, whisper-cli and the ASR model always; silero-vad when VAD
-// is on; yt-dlp for URL sources; deno only for YouTube (D-06). An empty
+// is on; yt-dlp for URL sources; deno only for YouTube. An empty
 // asrModel means the platform default. app.SourceURL, the not yet classified
 // import type, counts as "not YouTube".
 func (m *Manager) Needed(sourceType string, asrModel string, vad bool) []string {
@@ -372,7 +372,7 @@ func (m *Manager) Path(name string) (string, error) {
 
 // BinDir returns a directory holding links to the active ffmpeg and ffprobe
 // (and every other installed tool) under their plain names. yt-dlp's
-// --ffmpeg-location (§11.5) needs both programs in one directory, while each
+// --ffmpeg-location needs both programs in one directory, while each
 // tool is installed in its own versioned one.
 func (m *Manager) BinDir() string { return m.binDir() }
 
@@ -485,8 +485,8 @@ func (m *Manager) Status(asrModel string, vad bool) app.ToolsStatus {
 	return out
 }
 
-// Ensure installs every named tool or model that is not ready yet, in order,
-// following §11.3. progress, if not nil, receives the bytes downloaded so far
+// Ensure installs every named tool or model that is not ready yet, in order,.
+// progress, if not nil, receives the bytes downloaded so far
 // and the expected total per item (total is 0 when unknown); it may be called
 // from other goroutines when calls overlap. A cancelled ctx returns ctx.Err().
 func (m *Manager) Ensure(ctx context.Context, names []string, progress func(name string, done, total int64)) error {

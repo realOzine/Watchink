@@ -15,7 +15,7 @@ import (
 	"watchink/internal/procx"
 )
 
-// DownloadOptions describes one yt-dlp download (§11.5).
+// DownloadOptions describes one yt-dlp download.
 type DownloadOptions struct {
 	// YtDlp is the yt-dlp executable.
 	YtDlp string
@@ -26,7 +26,7 @@ type DownloadOptions struct {
 	// Proxy is an optional proxy URL (--proxy).
 	Proxy string
 	// URL is the video link. It is normalized again here and only the
-	// canonical URL reaches yt-dlp (§15).
+	// canonical URL reaches yt-dlp.
 	URL string
 	// SourceType, when set, must match the normalized URL
 	// (app.SourceYouTube / app.SourceBilibili).
@@ -49,7 +49,7 @@ type DownloadResult struct {
 
 const (
 	// ytdlpFormat prefers H.264 + AAC up to 1080p so the playback stage can
-	// serve the file directly (D-11, §10.1), then degrades step by step.
+	// serve the file directly, then degrades step by step.
 	ytdlpFormat = "bv*[vcodec^=avc1][height<=1080]+ba[acodec^=mp4a]" +
 		"/b[vcodec^=avc1][acodec^=mp4a][height<=1080]" +
 		"/bv*[vcodec^=avc1][height<=1080]+ba" +
@@ -70,7 +70,7 @@ const (
 // one per line so titles with any characters survive.
 var ytdlpInfoFields = []string{"id", "title", "uploader", "duration", "ext", "filepath"}
 
-// ytdlpArgs builds the §11.5 command line. Cookies are never passed, and
+// ytdlpArgs builds the command line. Cookies are never passed, and
 // --ignore-config keeps a user-level yt-dlp config (which could enable
 // --cookies-from-browser) out of the picture.
 func ytdlpArgs(opts DownloadOptions, ref *SourceRef) []string {

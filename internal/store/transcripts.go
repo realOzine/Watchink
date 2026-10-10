@@ -9,11 +9,11 @@ import (
 	"watchink/internal/app"
 )
 
-// maxSegments is the largest idx the 5-digit segment ID format can carry (§6.3).
+// maxSegments is the largest idx the 5-digit segment ID format can carry.
 const maxSegments = 99999
 
 // Transcript is a row of the transcripts table. A transcript version is
-// immutable once inserted, which keeps segment IDs stable (§6.3).
+// immutable once inserted, which keeps segment IDs stable.
 type Transcript struct {
 	ID               string
 	VideoID          string

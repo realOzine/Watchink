@@ -5,6 +5,6 @@ var (
 	// Version is the semantic version of the program.
 	Version = "0.0.2"
 	// BuildID is "<commit>-<build date>"; clients compare it with the running
-	// engine's build_id (docs/v0.md §5.2).
+	// engine's build_id.
 	BuildID = "dev"
 )

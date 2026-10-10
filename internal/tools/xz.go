@@ -15,8 +15,8 @@ import (
 
 // This file is a small, read-only decoder for the .xz container with the
 // LZMA2 filter, which is all `xz` and `tar -J` produce by default and what
-// the Linux FFmpeg builds ship as (§11.2). The standard library has no xz
-// support and the project takes no dependency for it (D-16). Not supported,
+// the Linux FFmpeg builds ship as. The standard library has no xz
+// support and the project takes no dependency for it. Not supported,
 // and reported as errors: BCJ / delta filter chains.
 //
 // Format references: the .xz file format specification 1.1.0 and the LZMA
@@ -340,7 +340,7 @@ func (z *xzReader) readChunk() error {
 		return nil
 	}
 
-	// Block padding and check (file format §3.3, §3.4).
+	// Block padding and check (file format §3.3).
 	comp := z.in.n - z.blockStart - z.headerSize
 	if (z.wantComp >= 0 && comp != z.wantComp) || (z.wantUncomp >= 0 && z.uncompressed != z.wantUncomp) {
 		return xzErr("block size differs from its header")
@@ -379,7 +379,7 @@ func (z *xzReader) readChunk() error {
 }
 
 // indexAndFooter verifies the index against the blocks that were decoded and
-// reads the stream footer (file format §4, §2.1.2). start is the container
+// reads the stream footer (file format §4). start is the container
 // offset of the index indicator, which has already been consumed.
 func (z *xzReader) indexAndFooter(start int64) error {
 	// The index is checksummed as raw bytes, indicator included.

@@ -25,7 +25,7 @@ func groupAlive(pgid int) bool { return false }
 func KillIfMatches(pid int, exe string) (bool, error) { return false, errUnsupported }
 
 // GuardMain is only needed on macOS; other platforms rely on Pdeathsig or a
-// Job Object (§5.5).
+// Job Object.
 func GuardMain(args []string) int {
 	fmt.Println("watchink _guard is only available on macOS")
 	return 2

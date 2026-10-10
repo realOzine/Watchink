@@ -66,7 +66,7 @@ func TestSampleHash(t *testing.T) {
 		})
 	}
 
-	// A change outside the sampled windows keeps the key (by design, D-13);
+	// A change outside the sampled windows keeps the key (by design);
 	// a change inside any window, or a different size, changes it.
 	data := pattern(20 * mib)
 	base, _, _ := SampleHash(writeFile(t, "a", data))

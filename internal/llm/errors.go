@@ -15,7 +15,7 @@ import (
 var ErrContextOverflow = errors.New("llm: context length exceeded")
 
 // IsContextOverflow reports whether err means "the input does not fit the
-// model's context window". Callers react by splitting their input (§9.2).
+// model's context window". Callers react by splitting their input.
 func IsContextOverflow(err error) bool { return errors.Is(err, ErrContextOverflow) }
 
 type errKind int
@@ -112,7 +112,7 @@ func classify(status int, body string, sentFormat bool) errKind {
 	return kindBadRequest
 }
 
-// appError converts the classification into the contract error (§7.7).
+// appError converts the classification into the contract error.
 func (e *callErr) appError(attempts int) error {
 	var out *app.Error
 	switch e.kind {
@@ -170,7 +170,7 @@ var (
 	skKeyRe  = regexp.MustCompile(`\bsk-[A-Za-z0-9_-]{6,}`)
 )
 
-// redact removes credentials from text that ends up in error details (§15).
+// redact removes credentials from text that ends up in error details.
 func redact(s, key string) string {
 	if key != "" {
 		s = strings.ReplaceAll(s, key, "***")

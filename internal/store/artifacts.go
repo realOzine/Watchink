@@ -9,7 +9,7 @@ import (
 	"watchink/internal/app"
 )
 
-// Artifact kinds (§6.4).
+// Artifact kinds.
 const (
 	KindSource   = "source"
 	KindProbe    = "probe"
@@ -33,7 +33,7 @@ type Artifact struct {
 	Path        string // relative to the data dir, "" for metadata-only artifacts
 	SHA256      string
 	SizeBytes   int64
-	Purged      bool            // file deleted by policy; rebuild by fingerprint (§7.4)
+	Purged      bool            // file deleted by policy; rebuild by fingerprint
 	Meta        json.RawMessage // JSON object, "{}" when empty
 	CreatedAt   string
 }
@@ -65,7 +65,7 @@ func rawJSON(m json.RawMessage) string {
 // returns the stored row. When the pair already exists its ID and created_at
 // are kept — other rows reference the ID — while video, path, sha256, size
 // and meta are replaced and purged is reset to false. Register the row only
-// after the file has been committed (§6.2).
+// after the file has been committed.
 func (q *Queries) PutArtifact(ctx context.Context, a *Artifact) (*Artifact, error) {
 	id := a.ID
 	if id == "" {

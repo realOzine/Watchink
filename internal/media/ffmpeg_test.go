@@ -276,7 +276,7 @@ func TestPlanPlayback(t *testing.T) {
 	}
 }
 
-// timestampShifters are the options §10.1 forbids in playback commands.
+// timestampShifters are the options forbids in playback commands.
 var timestampShifters = []string{"-ss", "-itsoffset", "-copyts", "-start_at_zero", "-avoid_negative_ts", "-output_ts_offset", "-muxdelay", "-muxpreload", "-t", "-to", "-shortest"}
 
 func TestPlaybackArgs(t *testing.T) {
@@ -320,7 +320,7 @@ func TestPlaybackArgs(t *testing.T) {
 }
 
 func TestExtractAudioArgs(t *testing.T) {
-	// The §8.1 command, plus machine-readable progress and the explicit
+	// The command, plus machine-readable progress and the explicit
 	// muxer needed by the .tmp name.
 	want := "-nostdin -hide_banner -y -i /in/src.mp4 -map 0:a:0 -vn -ac 1 -ar 16000 -c:a pcm_s16le -progress pipe:1 -nostats -f wav /out/audio.wav.tmp"
 	if got := strings.Join(extractAudioArgs("/in/src.mp4", "/out/audio.wav.tmp"), " "); got != want {

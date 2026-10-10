@@ -3,7 +3,7 @@ import type { Platform } from './types';
 const connection = {
   baseUrl: '',
   headers: {},
-  // Cookie sessions must prove the request came from our own page (§15).
+  // Cookie sessions must prove the request came from our own page.
   mutationHeaders: { 'X-WK-Request': '1' },
   credentials: 'same-origin' as RequestCredentials,
 };

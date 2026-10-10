@@ -1,4 +1,4 @@
-// Dev mock of the Watchink engine API (docs/v0.md §13) — plain Node, no deps.
+// Dev mock of the Watchink engine API — plain Node, no deps.
 //
 //   node mock/server.mjs [--port 47990] [--dist ../internal/webui/dist]
 //                        [--fresh] [--require-auth] [--page-chars 20000] [--speed 1]
@@ -128,7 +128,7 @@ function makeTranscript(durationMs, language = 'zh') {
   return { transcript_id: `tr_${id}`, language, engine: 'whispercpp', model: 'whisper-large-v3-turbo-q5_0', segments };
 }
 
-/** Builds a canonical note (§9.4) whose wk://seg/ links point into `tr`. */
+/** Builds a canonical note whose wk://seg/ links point into `tr`. */
 function makeNote(video, tr, version = 1) {
   const long = video.duration_ms >= 3_600_000;
   const segs = tr.segments;
@@ -355,7 +355,7 @@ function engineInfo() {
   };
 }
 
-// ---------------------------------------------------------------- events (§13.3)
+// ---------------------------------------------------------------- events
 
 const clients = new Set();
 const backlog = []; // last 1000 events
@@ -453,7 +453,7 @@ function bump(rec) {
     let total = 0;
     for (const st of job.stages) {
       const w = WEIGHTS[st.stage];
-      if (w == null) continue; // playback is shown separately (§7.2)
+      if (w == null) continue; // playback is shown separately
       total += w;
       done += w * st.progress;
     }
@@ -502,7 +502,7 @@ function runProcessJob(rec) {
         st.attempt++;
         st.started_at = now();
         if (name === 'note_map' && !llmConfigured()) {
-          // §7.5: without a model the job fails right here instead of hanging.
+          // without a model the job fails right here instead of hanging.
           const e = err('MODEL_NOT_CONFIGURED', '没有配置在线模型', {
             stage: 'note_map',
             hint: '在设置中填写接口地址、模型名和 API Key 后重试该任务',
@@ -615,7 +615,7 @@ function retryJob(rec) {
   job.status = 'queued';
   job.error = null;
   for (const st of job.stages) {
-    if (st.status === 'succeeded') st.reused = true; // still-valid artifacts are reused (§7.3)
+    if (st.status === 'succeeded') st.reused = true; // still-valid artifacts are reused
     else Object.assign(st, { status: 'pending', progress: 0, error: undefined, finished_at: undefined });
   }
   bump(rec);
@@ -903,7 +903,7 @@ function doImport(body) {
     const jrec = existing.video.latest_job_id ? state.jobs.get(existing.video.latest_job_id) : null;
     const status = jrec?.job.status;
     const base = { video_id: existing.video.video_id, job_id: jrec?.job.job_id ?? '', note_id: existing.video.note_id, warnings };
-    // §7.5 dedup table.
+    // dedup table.
     if (['queued', 'running', 'cancelling'].includes(status)) return { ...base, status, deduplicated: true };
     if (existing.video.status === 'ready') return { ...base, status: 'already_processed', deduplicated: true };
     if (status) return { ...base, status, deduplicated: true };
@@ -979,7 +979,7 @@ async function route(req, res) {
   const p = path.slice('/api/v1'.length);
   if (p === '/health') return send(res, 200, { status: 'ok' });
   if (REQUIRE_AUTH) fail('UNAUTHORIZED', '缺少或无效的会话');
-  // Cookie sessions must carry the custom header on state-changing requests (§15).
+  // Cookie sessions must carry the custom header on state-changing requests.
   if (method !== 'GET' && method !== 'HEAD' && req.headers['x-wk-request'] !== '1' && !req.headers.authorization) {
     fail('UNAUTHORIZED', '状态变更请求缺少 X-WK-Request 头');
   }

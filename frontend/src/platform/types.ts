@@ -6,7 +6,7 @@ export interface Connection {
   baseUrl: string;
   /** Sent with every request. */
   headers: Record<string, string>;
-  /** Added to state-changing requests only (cookie CSRF guard, §15). */
+  /** Added to state-changing requests only (cookie CSRF guard). */
   mutationHeaders: Record<string, string>;
   credentials: RequestCredentials;
 }
@@ -38,7 +38,7 @@ export interface SaveResult {
 
 /**
  * Everything that differs between the desktop shell and a browser tab
- * (docs/v0.md §14.2). Pages use this interface and never test the mode.
+ *. Pages use this interface and never test the mode.
  */
 export interface Platform {
   readonly mode: 'web' | 'desktop';

@@ -9,7 +9,7 @@ import (
 // redactMask replaces every masked value.
 const redactMask = "***"
 
-// The generic patterns below implement the §15 rule that Authorization
+// The generic patterns below implement the rule that Authorization
 // headers, API keys, tokens and login codes never reach logs or error details.
 var (
 	// "Authorization: Bearer abc", "authorization=Basic abc", "Authorization: abc".
@@ -20,13 +20,13 @@ var (
 	reSKKey = regexp.MustCompile(`\bsk-[A-Za-z0-9_\-]{8,}`)
 	// key=value / "key": "value" assignments of credential-like names.
 	reAssign = regexp.MustCompile(`(?i)\b((?:[a-z0-9]+[_\-])*(?:api[_\-]?key|apikey|access[_\-]?token|refresh[_\-]?token|auth[_\-]?token|token|secret|password|passwd)["']?\s*[:=]\s*["']?)[^\s&"',;]+`)
-	// Media token and login code carried as URL query values (§10.2, §15).
+	// Media token and login code carried as URL query values.
 	reQuery = regexp.MustCompile(`(?i)([?&](?:mt|code|key|sig|signature)=)[^&\s"'#]+`)
 )
 
 // Redact masks the given secrets and well-known credential patterns in s:
 // Authorization headers, Bearer tokens, sk-... keys, api_key=/token=
-// assignments and the mt= / code= query values (§15). It is safe to call on
+// assignments and the mt= / code= query values. It is safe to call on
 // arbitrary tool output; text without credentials is returned unchanged.
 func Redact(s string, secrets ...string) string {
 	if s == "" {

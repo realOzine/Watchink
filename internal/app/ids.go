@@ -10,7 +10,7 @@ import (
 	"github.com/oklog/ulid/v2"
 )
 
-// ID prefixes (docs/v0.md §6.3, contract).
+// ID prefixes (contract).
 const (
 	PrefixVideo      = "vid_"
 	PrefixJob        = "job_"

@@ -1,5 +1,5 @@
 // Command watchink is the single executable behind every run mode
-// (docs/v0.md D-02, §4.2): desktop window, foreground engine (`serve`),
+// : desktop window, foreground engine (`serve`),
 // background engine (`engine run`), MCP stdio server and the CLI client.
 package main
 
@@ -25,7 +25,7 @@ import (
 )
 
 func main() {
-	// The guard wraps child tools on macOS (§5.5); it must start without
+	// The guard wraps child tools on macOS; it must start without
 	// touching anything else.
 	if len(os.Args) > 1 && os.Args[1] == procx.GuardSubcommand {
 		os.Exit(procx.GuardMain(os.Args[2:]))
@@ -70,7 +70,7 @@ func main() {
 func runEngine(ctx context.Context, dataDir, mode string, port int, open bool) error {
 	guard := ""
 	if runtime.GOOS == "darwin" {
-		// §5.5: on macOS children are wrapped by `watchink _guard`.
+		// on macOS children are wrapped by `watchink _guard`.
 		guard, _ = os.Executable()
 	}
 	err := engine.Run(ctx, engine.Options{
@@ -107,7 +107,7 @@ func runEngine(ctx context.Context, dataDir, mode string, port int, open bool) e
 	})
 	if errors.Is(err, engine.ErrAlreadyRunning) {
 		if mode == engine.ModeBackground {
-			// Lost the cold-start race (§5.2 step 4): the winner serves.
+			// Lost the cold-start race (step 4): the winner serves.
 			return nil
 		}
 		return app.E(app.CodeConflict, "该数据目录已有 Engine 在运行").WithHint("直接使用 `watchink web`，或先执行 `watchink engine stop`")

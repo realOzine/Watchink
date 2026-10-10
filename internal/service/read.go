@@ -22,7 +22,7 @@ import (
 	"watchink/internal/store"
 )
 
-// mediaTokenTTL is the lifetime of a signed playback URL (§10.2).
+// mediaTokenTTL is the lifetime of a signed playback URL.
 const mediaTokenTTL = 6 * time.Hour
 
 func (s *Service) noteRow(ctx context.Context, videoID, noteID string) (*store.Note, error) {
@@ -252,7 +252,7 @@ func (s *Service) GetTranscript(ctx context.Context, req app.GetTranscriptReques
 // --- playback ---
 
 // mediaToken signs "<video_id>\n<expiry>" with the per-run key: the token
-// grants read access to one video's playback file only (§10.2).
+// grants read access to one video's playback file only.
 func (s *Service) mediaToken(videoID string, exp time.Time) string {
 	e := strconv.FormatInt(exp.Unix(), 10)
 	mac := hmac.New(sha256.New, s.mediaKey)
@@ -321,7 +321,7 @@ func (s *Service) OpenPlayback(ctx context.Context, videoID, mediaToken string) 
 
 // --- export ---
 
-// CreateExport implements app.Service (§9.7).
+// CreateExport implements app.Service.
 func (s *Service) CreateExport(ctx context.Context, req app.ExportRequest) (*app.Export, error) {
 	v, err := s.st.GetVideo(ctx, req.VideoID)
 	if err != nil {

@@ -11,7 +11,7 @@ import { Button, ErrorNotice, Field, Notice, Spinner, inputClass } from './ui';
 
 const t = zh.settings.llm;
 
-/** Presets only fill in base_url (§14.1); model name and key stay with the user. */
+/** Presets only fill in base_url; model name and key stay with the user. */
 export const LLM_PRESETS: { id: string; baseUrl: string }[] = [
   { id: 'openai', baseUrl: 'https://api.openai.com/v1' },
   { id: 'deepseek', baseUrl: 'https://api.deepseek.com/v1' },

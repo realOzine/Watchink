@@ -78,7 +78,7 @@ export function VideoDetailPage() {
   const transcript = useTranscript(id, !!v?.transcript_id);
   const segments = transcript.data?.segments ?? NO_SEGMENTS;
 
-  // `/videos/:id?t=<ms>` opens at that time (§10.3).
+  // `/videos/:id?t=<ms>` opens at that time.
   const tParam = parseTimeParam(params.get('t'));
   useEffect(() => {
     if (tParam != null) controller.seek(tParam);
@@ -114,7 +114,7 @@ export function VideoDetailPage() {
 
   const active = isJobActive(job?.status);
   const noteStageDone = job?.stages?.some((st) => st.stage === 'note_render' && st.status === 'succeeded') ?? false;
-  // §7.2: the note is readable as soon as note_render finished, even while
+  // the note is readable as soon as note_render finished, even while
   // `playback` is still running. Until then the stage list takes its place.
   const showJob = !!job && ((active && !noteStageDone) || (!v.note_id && job.status !== 'succeeded'));
 

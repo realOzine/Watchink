@@ -8,7 +8,7 @@ import (
 	"watchink/internal/app"
 )
 
-// UpdateYtDlp installs the latest official yt-dlp release (§11.5) and makes
+// UpdateYtDlp installs the latest official yt-dlp release and makes
 // it the active version; the previous one stays installed for Rollback.
 func (m *Manager) UpdateYtDlp(ctx context.Context) (version string, err error) {
 	return m.UpdateTool(ctx, ToolYtDlp)

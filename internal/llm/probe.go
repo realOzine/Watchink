@@ -18,7 +18,7 @@ const PingMarker = "[watchink:task=ping]"
 
 // Test sends one tiny structured request and reports whether the endpoint is
 // reachable, the credentials work, and which structured-output level was
-// accepted (POST /api/v1/settings/llm/test, §13.2). It never returns nil.
+// accepted (POST /api/v1/settings/llm/test). It never returns nil.
 func Test(ctx context.Context, cfg Config) *app.LLMTestResult {
 	res := &app.LLMTestResult{Model: cfg.Model}
 	if cfg.MaxAttempts == 0 {

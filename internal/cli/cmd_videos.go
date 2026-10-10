@@ -123,7 +123,7 @@ func (e *env) cmdNote() *cobra.Command {
 				return oneOf("format", format, "md", "json")
 			}
 			return c.withRemote(func(r app.Remote) error {
-				// The API pages long text (§13.1); the CLI always returns
+				// The API pages long text; the CLI always returns
 				// the whole note, pinned to one note version.
 				var note *app.Note
 				var content strings.Builder
@@ -163,7 +163,7 @@ func (e *env) cmdNote() *cobra.Command {
 	return group("note", "笔记", get)
 }
 
-// parseTime parses the CLI time syntax of §13.4: H:MM:SS, MM:SS (both with
+// parseTime parses the CLI time syntax: H:MM:SS, MM:SS (both with
 // optional fractional seconds) or 12345ms.
 func parseTime(s string) (int64, error) {
 	bad := func() (int64, error) {
@@ -329,7 +329,7 @@ func (e *env) cmdExport() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				// The engine only writes inside the data dir (§15); the copy
+				// The engine only writes inside the data dir; the copy
 				// the user asked for is written by this process.
 				body, exp, err := r.OpenExport(c.ctx, created.ExportID)
 				if err != nil {

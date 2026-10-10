@@ -418,7 +418,7 @@ func TestFormatError(t *testing.T) {
 	}
 }
 
-// TestBoundSurface pins the binding names the frontend relies on (§13.6).
+// TestBoundSurface pins the binding names the frontend relies on.
 func TestBoundSurface(t *testing.T) {
 	typ := reflect.TypeOf(&App{})
 	var got []string

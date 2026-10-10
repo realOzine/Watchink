@@ -6,7 +6,7 @@ import (
 )
 
 // embeddedBin holds the whisper-cli builds produced by
-// third_party/whisper/build.sh (docs/v0.md D-06, §16.1). The binaries are not
+// third_party/whisper/build.sh. The binaries are not
 // committed; a fresh clone only has the .gitkeep files, in which case
 // whisper-cli is reported as TOOL_MISSING at runtime.
 //

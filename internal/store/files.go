@@ -18,7 +18,7 @@ import (
 	"watchink/internal/app"
 )
 
-// Top-level directories of the data dir (§6.2), as relative paths.
+// Top-level directories of the data dir, as relative paths.
 const (
 	DirLibrary = "library"
 	DirExports = "exports"
@@ -61,7 +61,7 @@ func (s *Store) Rel(abs string) (string, error) {
 }
 
 // VideoDir returns the relative directory of a video: library/<video_id>.
-// Combine with path.Join for the files of §6.2 and with Abs for tools.
+// Combine with path.Join for the files and with Abs for tools.
 func (s *Store) VideoDir(videoID string) string { return path.Join(DirLibrary, videoID) }
 
 // ExportDir returns the relative export directory of a video.
@@ -89,7 +89,7 @@ func (s *Store) TempPath(rel string) (string, error) {
 }
 
 // WriteFileAtomic writes data to rel through a temp file (write, fsync,
-// rename — §6.2) and returns its hash and size. Register the artifact row
+// rename) and returns its hash and size. Register the artifact row
 // afterwards.
 func (s *Store) WriteFileAtomic(rel string, data []byte) (FileInfo, error) {
 	tmp, err := s.TempPath(rel)
@@ -174,7 +174,7 @@ func (s *Store) RemoveFile(rel string) error {
 	return nil
 }
 
-// VerifyArtifact reports whether a may be reused (§7.4): the row is not
+// VerifyArtifact reports whether a may be reused: the row is not
 // purged, and — for artifacts with a file — the file exists with the
 // registered size and sha256. A nil artifact is not reusable. Hashing reads
 // the whole file, so this costs time on multi-gigabyte sources; see
@@ -205,7 +205,7 @@ func (s *Store) ArtifactPresent(a *Artifact) bool {
 }
 
 // PurgeArtifact deletes the file of the artifact and marks the row purged,
-// so the stage reruns when the artifact is needed again (§7.4).
+// so the stage reruns when the artifact is needed again.
 func (s *Store) PurgeArtifact(ctx context.Context, id string) error {
 	a, err := s.GetArtifact(ctx, id)
 	if err != nil {
@@ -230,7 +230,7 @@ type SweepReport struct {
 }
 
 // SweepExpiredUploads deletes the staged file and the row of every upload
-// that expired without being imported (§6.2). Safe to call at any time.
+// that expired without being imported. Safe to call at any time.
 func (s *Store) SweepExpiredUploads(ctx context.Context, now time.Time) ([]string, error) {
 	expired, err := s.ListExpiredUploads(ctx, now)
 	if err != nil {
@@ -249,7 +249,7 @@ func (s *Store) SweepExpiredUploads(ctx context.Context, now time.Time) ([]strin
 	return ids, nil
 }
 
-// SweepOrphans cleans the data dir after a restart (§6.2, §7.6 step 3). Call
+// SweepOrphans cleans the data dir after a restart (step 3). Call
 // it at engine start, after Recover and before the scheduler or the API
 // accept work — it assumes nothing is being written:
 //

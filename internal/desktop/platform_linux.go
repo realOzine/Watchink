@@ -15,7 +15,7 @@ func windowIcon() []byte { return linuxassets.Icon }
 
 // preflight reports why no window can be opened in this session. Wails
 // panics inside gtk_init when there is no display, which would leave a user
-// on an SSH session with a stack trace instead of an explanation (S-03).
+// on an SSH session with a stack trace instead of an explanation.
 func preflight() error {
 	if os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != "" {
 		return nil

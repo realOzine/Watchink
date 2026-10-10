@@ -18,7 +18,7 @@ import (
 
 const userAgent = "Watchink-tools/0"
 
-// SetNetwork replaces the mirror table and proxy (§11.4). It may be called at
+// SetNetwork replaces the mirror table and proxy. It may be called at
 // any time; downloads started afterwards use the new values. An empty proxy
 // means "follow HTTPS_PROXY and friends".
 func (m *Manager) SetNetwork(mirrors map[string]string, proxy string) {

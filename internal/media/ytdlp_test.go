@@ -79,7 +79,7 @@ func TestYtDlpArgs(t *testing.T) {
 	args := ytdlpArgs(opts, yt)
 	joined := strings.Join(args, " ")
 
-	// §11.5 flag shape, in order.
+	// flag shape, in order.
 	wantOrder := []string{
 		"--no-playlist", "--no-mtime", "--newline", "--ffmpeg-location /t/ff",
 		"--js-runtimes deno:/t/deno", "-f " + ytdlpFormat, "--merge-output-format mp4",

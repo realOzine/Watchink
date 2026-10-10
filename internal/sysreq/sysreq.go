@@ -1,8 +1,8 @@
 // Package sysreq checks the system libraries the desktop window needs at
-// runtime (docs/v0.md D-11, §16.3). Only Linux has any: the WebView and the
+// runtime. Only Linux has any: the WebView and the
 // media decoders come from distribution packages there, while macOS ships
 // WKWebView with the system. The check only looks at files; it never starts
-// a process (§4.3).
+// a process.
 package sysreq
 
 import (
@@ -17,7 +17,7 @@ type Requirement struct {
 	// Package is the Ubuntu 24.04 package that provides it.
 	Package string
 	// Optional requirements do not keep the window from opening: without
-	// them only video playback inside it fails (D-11).
+	// them only video playback inside it fails.
 	Optional bool
 	// Found is filled in by the check.
 	Found bool
@@ -26,7 +26,7 @@ type Requirement struct {
 	plugin bool   // a GStreamer plugin, looked up in the plugin directories
 }
 
-// linuxDesktop is the §16.3 list for Linux.
+// linuxDesktop is the list for Linux.
 var linuxDesktop = []Requirement{
 	{Name: "WebKitGTK 4.1", Package: "libwebkit2gtk-4.1-0", file: "libwebkit2gtk-4.1.so.0"},
 	{Name: "GTK 3", Package: "libgtk-3-0t64", file: "libgtk-3.so.0"},

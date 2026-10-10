@@ -101,7 +101,7 @@ type DocTerm struct {
 
 // Rendered is the output of Render.
 type Rendered struct {
-	// Markdown is the canonical Markdown with wk://seg/ links (§9.4).
+	// Markdown is the canonical Markdown with wk://seg/ links.
 	Markdown string
 	Title    string
 	Document *Document
@@ -115,7 +115,7 @@ var orderedListRe = regexp.MustCompile(`^(\d{1,9})([.)])`)
 // escapeInline makes untrusted text (model output, video titles) safe to
 // embed in one line of the canonical Markdown: it cannot start a link, an
 // image, raw HTML, emphasis, a code span, a table cell or a new block, and it
-// cannot forge an wk:// citation (§15).
+// cannot forge an wk:// citation.
 func escapeInline(s string) string {
 	s = oneLine(s)
 	var b strings.Builder
@@ -285,9 +285,9 @@ func joinNonEmpty(parts ...string) string {
 	return strings.Join(out, " ")
 }
 
-// Render produces the canonical Markdown (§9.4), the structured Document, the
-// citations table and the coverage metadata (§9.6), then re-parses its own
-// output with Verify (§9.5). Any inconsistency is reported as INTERNAL: it
+// Render produces the canonical Markdown, the structured Document, the
+// citations table and the coverage metadata, then re-parses its own
+// output with Verify. Any inconsistency is reported as INTERNAL: it
 // is a program defect, never a model problem.
 func Render(in RenderInput) (*Rendered, error) {
 	if in.Reduce == nil {
@@ -442,7 +442,7 @@ func (r *renderer) writeOverview() error {
 }
 
 // writeSections writes one "## n. heading" block per section and checks the
-// invariant of §9.3: every valid point is rendered exactly once.
+// invariant: every valid point is rendered exactly once.
 func (r *renderer) writeSections() error {
 	rendered := map[string]bool{}
 	for i, s := range r.in.Reduce.Sections {
@@ -489,7 +489,7 @@ func (r *renderer) writeSections() error {
 			heading = fmt.Sprintf("第 %d 部分", i+1)
 		}
 		// The range shown is that of the cited segment starts, i.e. exactly
-		// the timestamps the reader sees in this section (§9.3).
+		// the timestamps the reader sees in this section.
 		fmt.Fprintf(&r.b, "## %d. %s `%s–%s`\n\n", i+1, heading, FormatTime(ds.StartMs, r.long), FormatTime(ds.EndMs, r.long))
 		if sum := escapeBlock(s.Summary); sum != "" {
 			r.b.WriteString(sum + "\n\n")
@@ -562,7 +562,7 @@ func parseCitationLinks(md string) []parsedLink {
 }
 
 // Verify re-parses a canonical Markdown note and checks the three invariants
-// of §9.5: every wk://seg/ link resolves to a segment of this transcript, its
+// : every wk://seg/ link resolves to a segment of this transcript, its
 // time lies in [0, durationMs], and links and citation rows correspond one to
 // one (same order, same segment, ref_no 1..n). A violation is INTERNAL.
 func Verify(markdown string, citations []app.Citation, segments []app.Segment, durationMs int64) error {

@@ -1,8 +1,8 @@
 import type { AgentSetup, Connection, Platform } from './types';
 
 /**
- * Methods bound by the Wails v2 shell at `window.go.desktop.App` (docs/v0.md
- * §13.6). Every binding returns a promise. This is the only file that touches
+ * Methods bound by the Wails v2 shell at `window.go.desktop.App`.
+ * Every binding returns a promise. This is the only file that touches
  * the Wails runtime.
  */
 export interface DesktopBindings {

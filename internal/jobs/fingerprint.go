@@ -11,7 +11,7 @@ import (
 	"strconv"
 )
 
-// Fingerprint returns the reuse key of a stage run (§7.4): the lowercase hex
+// Fingerprint returns the reuse key of a stage run: the lowercase hex
 // SHA-256 of the canonical JSON of
 //
 //	{"inputs": <inputs>, "stage": <stage>, "stage_version": <stageVersion>}

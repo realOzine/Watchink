@@ -78,10 +78,10 @@ func (e *env) cmdDoctor() *cobra.Command {
 				c.doctorEngine(ctx, r, add)
 			}
 
-			// WebView prerequisite (§13.4): macOS ships WKWebView with the
+			// WebView prerequisite: macOS ships WKWebView with the
 			// system, so only the presence of the desktop UI is reported.
 			// Linux takes the WebView and the media decoders from system
-			// packages (§16.3), which the injected check looks for. Windows
+			// packages, which the injected check looks for. Windows
 			// needs the WebView2 runtime.
 			if c.deps.RunDesktop != nil {
 				add(webViewCheck(desktopCheck(c.deps.DesktopPrereqs), c.deps.WebView))
@@ -139,7 +139,7 @@ type SystemPrereq struct {
 // desktopCheck reports the desktop UI of a GUI build together with its
 // system prerequisites. A missing WebView library fails the check; missing
 // media decoders are a warning, because everything but playback still works
-// and the browser UI remains available (D-11).
+// and the browser UI remains available.
 func desktopCheck(prereqs func() []SystemPrereq) doctorCheck {
 	ch := doctorCheck{Name: "desktop", Status: checkOK, Message: "此构建包含桌面界面"}
 	if prereqs == nil {
@@ -232,7 +232,7 @@ func (c *call) doctorEngine(ctx context.Context, r app.Remote, add func(doctorCh
 		add(ch)
 	}
 
-	// Tools and models (§11): only Required items make the check fail.
+	// Tools and models: only Required items make the check fail.
 	if tools, err := r.GetTools(ctx); err != nil {
 		add(failCheck("tools", err, ""))
 		add(doctorCheck{Name: "models", Status: checkSkipped, Message: "无法读取工具状态，未检查"})
@@ -241,7 +241,7 @@ func (c *call) doctorEngine(ctx context.Context, r app.Remote, add func(doctorCh
 		add(toolsCheck("models", app.ToolKindModel, tools))
 	}
 
-	// Online model configuration: state only, never the key itself (D-14).
+	// Online model configuration: state only, never the key itself.
 	s, err := r.GetSettings(ctx)
 	if err != nil {
 		add(failCheck("llm", err, ""))

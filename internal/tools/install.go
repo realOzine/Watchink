@@ -27,7 +27,7 @@ type toolSource struct {
 	origin  string
 	// localFile is the user's file for an import; it is copied, never moved.
 	localFile string
-	// pin marks the installed version as the user's choice (§11.5).
+	// pin marks the installed version as the user's choice.
 	pin bool
 }
 
@@ -71,7 +71,7 @@ func (m *Manager) versionOnDisk(name, version string, rec *installedTool) bool {
 	return err == nil && st.Size() == v.BinSize
 }
 
-// installTool runs the §11.3 flow for one tool version. Everything happens in
+// installTool runs the flow for one tool version. Everything happens in
 // a private staging directory until the final rename, so a failure at any
 // step leaves an installed version untouched, and the smoke test only ever
 // runs a file whose source passed the sha256 check.
@@ -375,8 +375,8 @@ func (m *Manager) installModel(ctx context.Context, name, localFile string, repo
 	return nil
 }
 
-// Import installs a tool or model from a file the user downloaded by hand
-// (§11.4). The file must be exactly the download the manifest pins: its
+// Import installs a tool or model from a file the user downloaded by hand.
+// The file must be exactly the download the manifest pins: its
 // sha256 is checked before anything is extracted or run. The file itself is
 // left untouched.
 func (m *Manager) Import(ctx context.Context, name, file string) error {

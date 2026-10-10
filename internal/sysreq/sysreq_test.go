@@ -35,7 +35,7 @@ func TestCheckLinuxDesktop(t *testing.T) {
 	// Nothing installed.
 	got := check(linuxDesktop, libDirs, pluginDirs)
 	if len(got) != 4 {
-		t.Fatalf("%d requirements, want the four of §16.3", len(got))
+		t.Fatalf("%d requirements, want four", len(got))
 	}
 	for _, r := range got {
 		if r.Found {

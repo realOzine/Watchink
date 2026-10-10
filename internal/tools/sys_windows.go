@@ -26,7 +26,7 @@ const (
 // because another process has the file (or a file below the directory) open
 // without share-delete access. That is what an antivirus does to a program
 // that was just written and run for its smoke test, a moment before the
-// install moves it into place (§11.3 step 6).
+// install moves it into place (step 6).
 func rename(oldpath, newpath string) error {
 	var err error
 	for i := 0; i < renameAttempts; i++ {

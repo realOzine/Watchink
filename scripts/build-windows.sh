@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the Windows amd64 release of Watchink (docs/v0.md §16):
+# Builds the Windows amd64 release of Watchink:
 #
 #   frontend -> whisper-cli -> resources (.syso) -> go build x2
 #   -> dist/Watchink/{Watchink.exe, watchink.com, README.txt}
@@ -7,15 +7,14 @@
 #
 # Usage: scripts/build-windows.sh [app|package]     (default: package)
 #
-# The release holds two executables built from the same code (S-02 option c,
-# docs/spikes/v0-windows.md): Watchink.exe is linked for the GUI subsystem
+# The release holds two executables built from the same code: Watchink.exe is linked for the GUI subsystem
 # (-H windowsgui) and opens the window on a double-click without a console;
 # watchink.com is linked for the console subsystem and is what cmd,
 # PowerShell and MCP clients run. With both in one folder, typing `watchink`
 # starts the .com, which precedes .exe in PATHEXT.
 #
-# The script runs under Git Bash on Windows (the release build, see
-# .github/workflows/windows.yml) and on macOS or Linux as a cross build: Wails
+# The script runs under Git Bash on Windows (the release build, see.
+# github/workflows/windows.yml) and on macOS or Linux as a cross build: Wails
 # v2 on Windows uses the pure-Go WebView2 loader, so no cgo, no C compiler and
 # no WebView2Loader.dll are involved. What a cross build cannot do is build
 # whisper-cli (MSVC) and, without a MinGW windres, the resources.
@@ -32,7 +31,7 @@
 #                    warn)
 #   MAIN_PKG         main package to build (default ./cmd/watchink)
 #
-# Signing (§16.4) is not done here: there is no certificate yet. README.txt
+# Signing is not done here: there is no certificate yet. README.txt
 # in the archive tells users how to get past SmartScreen.
 set -euo pipefail
 
@@ -73,7 +72,7 @@ FILE_VERSION="$SHORT_VERSION"
 while [[ "$(printf '%s' "$FILE_VERSION" | tr -cd '.' | wc -c | tr -d ' ')" -lt 3 ]]; do FILE_VERSION="$FILE_VERSION.0"; done
 COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo nogit)"
 BUILD_ID="${COMMIT}-$(date -u +%Y%m%d)"
-# Clients replace an idle engine only when build_id differs (docs/v0.md §5.2).
+# Clients replace an idle engine only when build_id differs.
 # Uncommitted work would otherwise keep the id of HEAD, and a running engine
 # would go on serving the previous build's embedded web UI after a rebuild.
 if [[ "$COMMIT" != nogit ]] && [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
@@ -140,7 +139,7 @@ fi
 
 # --- go build --------------------------------------------------------------
 # Both executables get the same build_id, so either can start or reuse the
-# engine of the other (§5.2).
+# engine of the other.
 rm -rf "$STAGE"
 mkdir -p "$STAGE"
 LDFLAGS="-w -s -X watchink/internal/version.Version=$VERSION -X watchink/internal/version.BuildID=$BUILD_ID"

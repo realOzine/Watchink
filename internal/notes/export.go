@@ -26,7 +26,7 @@ func labelSeconds(label string) int64 {
 	return sec
 }
 
-// ExportMarkdown turns the canonical Markdown into portable Markdown (§9.7):
+// ExportMarkdown turns the canonical Markdown into portable Markdown:
 // every wk://seg/ link becomes a platform time link for YouTube and Bilibili
 // sources, or the plain text "[MM:SS]" for local files and uploads (and for a
 // platform id that does not look valid). The visible time label is kept.
@@ -224,7 +224,7 @@ func ExportExt(format string) string {
 	return "txt"
 }
 
-// ExportFilename builds "<sanitised title>-<last 6 of video_id>.<ext>" (§9.7).
+// ExportFilename builds "<sanitised title>-<last 6 of video_id>.<ext>".
 // The result is a single path element that is valid on every supported OS and
 // bounded in length.
 func ExportFilename(title, videoID, format string) string {
@@ -250,7 +250,7 @@ func ExportFilename(title, videoID, format string) string {
 // Paginate returns the page of content that starts at offset and holds at
 // most maxChars Unicode code points, the total number of code points, and
 // the next offset (nil when the page reaches the end) — the long-text
-// convention of §13.1. maxChars == 0 means the default (20000); a negative
+// convention. maxChars == 0 means the default (20000); a negative
 // maxChars means no limit.
 func Paginate(content string, offset, maxChars int) (page string, total int, next *int) {
 	total = utf8.RuneCountInString(content)

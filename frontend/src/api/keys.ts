@@ -18,8 +18,8 @@ export const keys = {
 export const ACTIVE_JOB_STATUSES: readonly string[] = ['queued', 'running', 'cancelling'];
 export const isJobActive = (status: string | null | undefined): boolean =>
   status != null && ACTIVE_JOB_STATUSES.includes(status);
-/** §7.3: cancel is allowed for queued / running. */
+/** cancel is allowed for queued / running. */
 export const canCancelJob = (status: string): boolean => status === 'queued' || status === 'running';
-/** §7.3: retry is allowed for failed / cancelled / interrupted. */
+/** retry is allowed for failed / cancelled / interrupted. */
 export const canRetryJob = (status: string): boolean =>
   status === 'failed' || status === 'cancelled' || status === 'interrupted';

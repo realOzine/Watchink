@@ -13,7 +13,7 @@ import (
 
 // Spawner starts `<exe> <args…>` as a detached process with the given
 // environment and returns without waiting for it. Only internal/procx may
-// create processes (§4.3), so the binary wires this to procx.SpawnDetached;
+// create processes, so the binary wires this to procx.SpawnDetached;
 // while it is nil, Connect cannot start an engine and reports
 // ENGINE_UNAVAILABLE.
 var Spawner func(exe string, args []string, env []string) error
@@ -30,7 +30,7 @@ const (
 var _ app.Connector = Connect
 
 // Connect finds the engine of the data directory, starting one when needed
-// (§5.2):
+// :
 //
 //  1. engine.json + GET /api/v1/engine with its token; same build_id → done.
 //  2. Different build_id: an idle engine is asked to shut down and replaced;
@@ -60,7 +60,7 @@ func Connect(ctx context.Context, opts app.ConnectOptions) (app.Remote, error) {
 			return c, nil
 
 		case c != nil:
-			// A reachable engine of another build (§5.2 step 2).
+			// A reachable engine of another build (step 2).
 			mismatch := app.E(app.CodeEngineVersionMismatch,
 				"正在运行的 Engine 版本（%s）与当前程序（%s）不一致", info.BuildID, buildID()).
 				WithDetail("engine_build_id", info.BuildID).
@@ -89,7 +89,7 @@ func Connect(ctx context.Context, opts app.ConnectOptions) (app.Remote, error) {
 			continue
 		}
 
-		// Not reachable (§5.2 steps 3–5).
+		// Not reachable (steps 3–5).
 		if opts.NoSpawn {
 			return nil, app.E(app.CodeEngineUnavailable, "Engine 未运行（已指定 --no-spawn）").
 				WithHint("去掉 --no-spawn，或先运行 `watchink serve`。")

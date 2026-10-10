@@ -1,4 +1,4 @@
-// Package cli builds the cobra command tree of docs/v0.md §13.4.
+// Package cli builds the cobra command tree.
 //
 // The package talks to the engine exclusively through an injected
 // app.Connector; everything that needs another package (running the engine,
@@ -42,7 +42,7 @@ type MCPOptions struct {
 // program. Nil function fields disable the matching command with a clear
 // error instead of panicking.
 type Deps struct {
-	// Connect connects to (and by default spawns) the engine (§5.2).
+	// Connect connects to (and by default spawns) the engine.
 	Connect app.Connector
 
 	// RunDesktop opens the desktop window; nil in nogui builds, where the
@@ -77,7 +77,7 @@ type Deps struct {
 	// must not spawn one.
 	IsEngineRunning func(dataDir string) bool
 	// DesktopPrereqs lists the system libraries the desktop window needs on
-	// this platform and whether each was found (`doctor`, §16.3). It is
+	// this platform and whether each was found (`doctor`). It is
 	// optional; nil or an empty result means there is nothing to check, as on
 	// macOS, which ships its WebView with the system.
 	DesktopPrereqs func() []SystemPrereq
@@ -113,7 +113,7 @@ type env struct {
 }
 
 // New builds the command tree. Commands return *app.Error (or an internal
-// failure carrying an explicit exit code); use Execute to get the §13.4
+// failure carrying an explicit exit code); use Execute to get the
 // output contract and exit codes.
 func New(deps Deps) *cobra.Command {
 	root, _ := newRoot(deps)
@@ -145,7 +145,7 @@ func newRoot(deps Deps) (*cobra.Command, *env) {
 		// unknown first argument as "unknown command", a usage error.
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if deps.RunDesktop == nil {
-				// nogui build (§4.2): the bare command prints help.
+				// nogui build: the bare command prints help.
 				return cmd.Help()
 			}
 			return e.runDesktop(cmd)
@@ -167,7 +167,7 @@ func newRoot(deps Deps) (*cobra.Command, *env) {
 			defaultHelp(cmd, args)
 			return
 		}
-		// §13.4: with --json stdout carries exactly one JSON value, so help
+		// with --json stdout carries exactly one JSON value, so help
 		// text is wrapped instead of printed raw.
 		_ = writeJSON(cmd.OutOrStdout(), map[string]string{"help": cmd.UsageString()})
 	})
@@ -182,7 +182,7 @@ func newRoot(deps Deps) (*cobra.Command, *env) {
 }
 
 // Execute runs the CLI with args (without the program name), writes results
-// to stdout and diagnostics to stderr following the §13.4 output contract,
+// to stdout and diagnostics to stderr following the output contract,
 // and returns the process exit code. It never calls os.Exit.
 func Execute(ctx context.Context, deps Deps, args []string, stdout, stderr io.Writer) (exitCode int) {
 	// `_guard` is dispatched before cobra sees anything so that its
@@ -245,7 +245,7 @@ func usageError(err error) error {
 }
 
 // finish converts the error returned by the command tree into output and an
-// exit code (§13.4).
+// exit code.
 func finish(err error, jsonMode bool, stdout, stderr io.Writer) int {
 	if err == nil {
 		return app.ExitOK
@@ -313,7 +313,7 @@ type call struct {
 	args []string
 	out  io.Writer
 	// errw is the raw stderr; progress is where progress and log lines go
-	// (discarded with --json unless --verbose, §13.4).
+	// (discarded with --json unless --verbose).
 	errw     io.Writer
 	progress io.Writer
 }
@@ -355,7 +355,7 @@ func (c *call) connect(forceNoSpawn bool) (app.Remote, error) {
 		DataDir: c.dataDir,
 		NoSpawn: c.noSpawn || forceNoSpawn,
 		// The same commands must also reach an engine of another build:
-		// stopping it is how a version mismatch is resolved (§5.2).
+		// stopping it is how a version mismatch is resolved.
 		AnyBuild:  forceNoSpawn,
 		Timeout:   time.Duration(c.timeout),
 		Requester: requester,

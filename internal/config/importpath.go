@@ -30,7 +30,7 @@ func expandRoot(root string) (string, error) {
 }
 
 // ExpandRoots turns security.import_roots into absolute, symlink-resolved
-// directories (§15). A root that does not exist is skipped: nothing can be
+// directories. A root that does not exist is skipped: nothing can be
 // inside it. A relative or empty entry is INVALID_ARGUMENT.
 func ExpandRoots(roots []string) ([]string, error) {
 	out := make([]string, 0, len(roots))
@@ -62,7 +62,7 @@ func within(root, path string) bool {
 	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
-// CheckImportPath enforces the local import policy of §15: path must be
+// CheckImportPath enforces the local import policy: path must be
 // absolute (INVALID_ARGUMENT), exist (NOT_FOUND), be a regular file
 // (INVALID_ARGUMENT) and, after resolving symlinks, lie inside one of roots
 // (PATH_NOT_ALLOWED). roots may be the raw security.import_roots; they are

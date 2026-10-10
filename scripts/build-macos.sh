@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the macOS arm64 release of Watchink (docs/v0.md §16):
+# Builds the macOS arm64 release of Watchink:
 #
 #   frontend -> whisper-cli -> go build (GUI) -> dist/Watchink.app
 #   -> ad-hoc codesign -> dist/Watchink-<ver>-macos-arm64.zip + SHA256SUMS
@@ -11,7 +11,7 @@
 #   SKIP_FRONTEND=1  reuse the existing internal/webui/dist
 #   ALLOW_MISSING_FRONTEND=1  build even when the SPA is absent (script testing)
 #   SKIP_WHISPER=1   do not build whisper-cli even when it is missing
-#   CODESIGN_IDENTITY  signing identity (default "-" = ad-hoc, §16.4)
+#   CODESIGN_IDENTITY  signing identity (default "-" = ad-hoc)
 #   MAIN_PKG         main package to build (default ./cmd/watchink)
 #
 # The GUI build is Wails' documented manual build: no wails CLI, just
@@ -53,7 +53,7 @@ SHORT_VERSION="$(printf '%s' "$VERSION" | sed -E 's/^([0-9]+(\.[0-9]+){0,2}).*$/
 [[ "$SHORT_VERSION" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]] || die "VERSION '$VERSION' does not start with a numeric version"
 COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo nogit)"
 BUILD_ID="${COMMIT}-$(date -u +%Y%m%d)"
-# Clients replace an idle engine only when build_id differs (docs/v0.md §5.2).
+# Clients replace an idle engine only when build_id differs.
 # Uncommitted work would otherwise keep the id of HEAD, and a running engine
 # would go on serving the previous build's embedded web UI after a rebuild.
 if [[ "$COMMIT" != nogit ]] && [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
@@ -111,7 +111,7 @@ rmdir "$DIST/.build" 2>/dev/null || true
 
 # --- sign ------------------------------------------------------------------
 # Apple Silicon refuses to run unsigned code; without a Developer ID an
-# ad-hoc signature makes the bundle runnable locally (§16.4).
+# ad-hoc signature makes the bundle runnable locally.
 log "codesign (${CODESIGN_IDENTITY:--})"
 codesign --force --deep -s "${CODESIGN_IDENTITY:--}" "$APP"
 codesign --verify --deep --strict "$APP"

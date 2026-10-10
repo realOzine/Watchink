@@ -6,7 +6,7 @@
 //	initialize → notifications/initialized → tools/list → tools/call
 //	list_videos → close stdin → the server exits by itself
 //
-// It is the automatable part of S-02's third criterion (docs/v0.md §16.5):
+// It checks, without a real MCP client, that
 // a console-subsystem executable answers on stdio pipes. The tool call makes
 // the server find or start the engine, so the whole chain is exercised. It is
 // not a substitute for trying a real MCP client.

@@ -2,7 +2,7 @@ import type { Citation } from '../api/types';
 
 export const SEG_SCHEME = 'wk://seg/';
 
-/** Removes the leading YAML front matter block of a canonical note (§9.4). */
+/** Removes the leading YAML front matter block of a canonical note. */
 export function stripFrontMatter(markdown: string): string {
   const text = markdown.replace(/^﻿/, '');
   const m = /^---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/.exec(text);
@@ -19,7 +19,7 @@ export function parseSegmentLink(href: string | null | undefined): string | null
 
 export type LinkKind = 'segment' | 'external' | 'blocked';
 
-/** Only wk://seg/, https:// and http:// are ever rendered as links (§15). */
+/** Only wk://seg/, https:// and http:// are ever rendered as links. */
 export function classifyLink(href: string | null | undefined): LinkKind {
   if (!href) return 'blocked';
   if (parseSegmentLink(href) != null) return 'segment';

@@ -1,4 +1,4 @@
-# whisper-cli notes (S-06, macOS arm64)
+# whisper-cli notes (macOS arm64)
 
 Measured 2026-10-09 on an Apple M3 Pro (11 cores, macOS 27.0.1, Metal), with
 whisper.cpp v1.9.5 (commit d1be6fde) built by `build.sh darwin arm64`, models
@@ -119,7 +119,7 @@ Each number is a single run, model load included (~0.15–0.3 s). VAD itself too
 - small, VAD on: no garbage at the silence, but 22 s of speech (36.3–58.7 s)
   is missing from the output.
 - large-v3-turbo, VAD on: two characters dropped at one boundary (“人们”).
-- English, large-v3-turbo, no prompt (as §8.2 specifies): lowercase text with no
+- English, large-v3-turbo, no prompt: lowercase text with no
   punctuation at all. With `--prompt "Hello, welcome to the lecture. Today, we
   will discuss the topic."` casing and punctuation were normal. small punctuated
   English correctly without a prompt.
@@ -153,9 +153,9 @@ not implemented or tested.
 - Default model: `whisper-large-v3-turbo-q5_0` (18x real time here; clearly
   better text than small, which is only 1.4x faster).
   `tools.Manager.DefaultASRModel()` returns it for darwin-arm64.
-- VAD default: **off**. The S-06 condition “time mapping correct under VAD” is
+- VAD default: **off**. The requirement “time mapping correct under VAD” is
   not met as-is (segment starts after long silences), VAD dropped content in
   both models on this sample, and the large model did not need it to get
   through 20 s of silence. Speed gain is ~3%. Revisit with real lecture audio
   and the stderr-based repair above.
-- Consider an English prompt for large-v3-turbo; §8.2 currently sends none.
+- Consider an English prompt for large-v3-turbo; the engine sent none when this was measured.

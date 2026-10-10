@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// installedFile is the content of <data>/tools/installed.json (§11.3 step 7):
+// installedFile is the content of <data>/tools/installed.json (step 7):
 // the record of what passed verification and which version is in use.
 type installedFile struct {
 	Version int                        `json:"version"`
@@ -19,7 +19,7 @@ type installedTool struct {
 	// Active is the version Path returns.
 	Active string `json:"active"`
 	// Previous is the version that was active before the last switch; it is
-	// what Rollback returns to (§11.5).
+	// what Rollback returns to.
 	Previous string `json:"previous,omitempty"`
 	// Pinned is set when the user chose Active (update / rollback), so it
 	// wins over the manifest version.

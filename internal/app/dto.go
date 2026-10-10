@@ -3,7 +3,7 @@ package app
 // All JSON fields are snake_case; durations relative to a video are *_ms
 // integers; instants are RFC 3339 UTC strings (docs/v0.md §13.1, contract).
 
-// Job, stage and video status values (docs/v0.md §7.3, §13.2, contract).
+// Job, stage and video status values (contract).
 const (
 	JobQueued      = "queued"
 	JobRunning     = "running"
@@ -34,13 +34,13 @@ const (
 	SourceBilibili = "bilibili"
 
 	// ImportStatusAlreadyProcessed is returned by Import when the video
-	// already has a successful job (docs/v0.md §7.5).
+	// already has a successful job.
 	ImportStatusAlreadyProcessed = "already_processed"
 
 	WarnModelNotConfigured = "MODEL_NOT_CONFIGURED"
 )
 
-// Stage names of a process_video job, in DAG order (docs/v0.md §7.2).
+// Stage names of a process_video job, in DAG order.
 const (
 	StageEnsureTools  = "ensure_tools"
 	StageAcquire      = "acquire"
@@ -86,7 +86,7 @@ type EngineInfo struct {
 	BaseURL   string `json:"base_url"`
 	StartedAt string `json:"started_at"`
 	// ActiveJobs counts queued + running + cancelling jobs; clients use it to
-	// decide whether a mismatched engine may be shut down (§5.2).
+	// decide whether a mismatched engine may be shut down.
 	ActiveJobs int `json:"active_jobs"`
 	// ToolsReady is true when every tool and model needed for a local-file
 	// import is installed.
@@ -196,7 +196,7 @@ type Job struct {
 	Attempt int     `json:"attempt"`
 	// Stage is the first non-finished stage (empty once the job is terminal).
 	Stage string `json:"stage"`
-	// Progress is the weighted overall progress in [0,1] (§7.2).
+	// Progress is the weighted overall progress in [0,1].
 	Progress    float64    `json:"progress"`
 	Stages      []JobStage `json:"stages"`
 	Error       *Error     `json:"error"`
@@ -252,7 +252,7 @@ type Citation struct {
 	Text string `json:"text,omitempty"`
 }
 
-// Coverage is the note coverage metadata (docs/v0.md §9.6).
+// Coverage is the note coverage metadata.
 type Coverage struct {
 	Chunks             int  `json:"chunks"`
 	ChunksEmpty        int  `json:"chunks_empty"`
@@ -361,7 +361,7 @@ type Export struct {
 	CreatedAt   string `json:"created_at"`
 }
 
-// Event is one entry of the event stream (docs/v0.md §13.3). Exactly one of
+// Event is one entry of the event stream. Exactly one of
 // Job / Video / Tools / Reason is set depending on Type.
 type Event struct {
 	ID    int64        `json:"id"`

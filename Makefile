@@ -1,4 +1,4 @@
-# Watchink build entry points (docs/v0.md §16). The unsuffixed targets build
+# Watchink build entry points. The unsuffixed targets build
 # for macOS arm64; Linux and Windows have their own blocks further down
 # (*-linux, *-windows). The pure-Go `build` target is portable.
 
@@ -76,7 +76,7 @@ clean:
 # The release is built on Windows under Git Bash (.github/workflows/windows.yml).
 # The same targets cross-compile from macOS or Linux, because the Windows GUI
 # build needs no cgo; such a build has no embedded whisper-cli and, without a
-# MinGW windres, no icon or manifest. See docs/spikes/v0-windows.md.
+# MinGW windres, no icon or manifest.
 
 .PHONY: whisper-windows desktop-windows package-windows lint-windows
 

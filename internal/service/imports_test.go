@@ -43,7 +43,7 @@ func writeMedia(t *testing.T, dir, name, content string) string {
 	return p
 }
 
-// TestConcurrentImportsOfOneFile is §7.5 under contention: many entry points
+// TestConcurrentImportsOfOneFile is under contention: many entry points
 // import the same file at the same moment. Exactly one of them creates the
 // video and its job; every other caller is handed that same job.
 func TestConcurrentImportsOfOneFile(t *testing.T) {

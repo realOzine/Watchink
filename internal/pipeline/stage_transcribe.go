@@ -67,7 +67,7 @@ func (p *Pipeline) asrSetup() (asrSetup, error) {
 }
 
 // transcribe turns the extracted audio into a transcript version: detect the
-// language when asked to, run Whisper over the whole file (D-07), clean up
+// language when asked to, run Whisper over the whole file, clean up
 // the segments and store them with the raw output.
 func (p *Pipeline) transcribe(ctx context.Context, sc *jobs.StageContext) (*jobs.StageResult, error) {
 	opt, err := options(sc)
@@ -144,7 +144,7 @@ func (p *Pipeline) transcribe(ctx context.Context, sc *jobs.StageContext) (*jobs
 		return nil, err
 	}
 	if !p.cfg().Media.KeepAudio {
-		// §6.2: the WAV is rebuilt by fingerprint when it is needed again.
+		// the WAV is rebuilt by fingerprint when it is needed again.
 		if err := p.st.PurgeArtifact(ctx, audio.ID); err != nil {
 			p.log.Warn("purge audio failed", "video_id", videoID, "error", err)
 		}
@@ -152,7 +152,7 @@ func (p *Pipeline) transcribe(ctx context.Context, sc *jobs.StageContext) (*jobs
 	return done(art), nil
 }
 
-// saveTranscript post-processes the Whisper segments (§8.2 step 3), shifts
+// saveTranscript post-processes the Whisper segments (step 3), shifts
 // them onto the video timeline and stores the transcript together with the
 // raw output artifact in one transaction.
 func (p *Pipeline) saveTranscript(ctx context.Context, tr *store.Transcript, res *asr.Result, audio *store.Artifact, fp, rawRel string) (*store.Artifact, error) {

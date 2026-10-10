@@ -1,9 +1,7 @@
-# Linux amd64: build, test and smoke-test Watchink on Ubuntu 24.04
-# (docs/v0.md §16.2, §16.3; spikes S-01, S-03, S-07, S-08 for Linux).
+# Linux amd64: build, test and smoke-test Watchink on Ubuntu 24.04.
 #
 # The Linux port is developed on macOS, so this workflow is where it is
-# actually compiled with cgo and run. What each step proves is recorded in
-# docs/spikes/v0-linux.md.
+# actually compiled with cgo and run.
 name: linux
 
 on:
@@ -38,7 +36,7 @@ jobs:
         with:
           node-version: 24
 
-      # Build packages (§16.1) plus the runtime packages of §16.3, so that
+      # Build packages plus the runtime packages, so that
       # `doctor` and the window check below see a complete system.
       - name: Install system packages
         run: |
@@ -103,22 +101,22 @@ jobs:
           echo "GUI=$gui" >> "$GITHUB_ENV"
           echo "HEADLESS=$headless" >> "$GITHUB_ENV"
 
-      # S-03: no graphical session. The script unsets DISPLAY itself.
+      # no graphical session. The script unsets DISPLAY itself.
       - name: Smoke test without a display (headless build)
         run: bash scripts/smoke-linux.sh "$HEADLESS"
 
       - name: Smoke test without a display (desktop build)
         run: bash scripts/smoke-linux.sh "$GUI" --gui
 
-      # S-01, as far as a machine can check it: under a virtual X server the
+      # The window, as far as a machine can check it: under a virtual X server the
       # window must come up and the embedded frontend must run and call a
       # binding. The engine is only started by the frontend's first EngineInfo
       # call, so a running engine shows that GTK, WebKitGTK, the asset server
       # and the bindings all work. Nobody looks at the window; rendering and
-      # video playback (S-05) still need a person at a real desktop. The step
+      # video playback still need a person at a real desktop. The step
       # does not gate the build because WebKitGTK inside a CI sandbox is not a
       # supported configuration; its log is uploaded either way.
-      - name: Window check under Xvfb (S-01, informational)
+      - name: Window check under Xvfb (informational)
         continue-on-error: true
         run: |
           set -uo pipefail
@@ -167,7 +165,7 @@ jobs:
         with:
           name: watchink-linux-amd64
 
-      # Only the runtime packages a user is told to install (§16.3), plus the
+      # Only the runtime packages a user is told to install, plus the
       # speech synthesizer for the sample.
       - name: Install runtime packages
         run: |

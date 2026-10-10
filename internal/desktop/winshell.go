@@ -12,8 +12,8 @@ import (
 )
 
 // ConsoleExecutableName is the console-subsystem twin shipped next to the
-// GUI executable on Windows (docs/v0.md §16.5 option c, recorded in
-// docs/spikes/v0-windows.md). Both are built from the same code; this one
+// GUI executable on Windows: a single executable cannot both open without a
+// console window and behave as a normal console program. Both are built from the same code; this one
 // is what a terminal or an MCP client should start.
 const ConsoleExecutableName = "watchink.com"
 
@@ -23,7 +23,7 @@ const ConsoleExecutableName = "watchink.com"
 func windowsOptions() *windows.Options {
 	return &windows.Options{
 		WebviewUserDataPath: webviewUserDataPath(),
-		// Shown when the WebView2 runtime is missing or too old (§16.3). With
+		// Shown when the WebView2 runtime is missing or too old. With
 		// the default Wails strategy the user confirms and Microsoft's
 		// bootstrapper is downloaded and run; nothing is installed silently.
 		Messages: &windows.Messages{
@@ -43,8 +43,8 @@ func windowsOptions() *windows.Options {
 }
 
 // webviewUserDataPath keeps the WebView2 profile (cache, local storage) in
-// %LOCALAPPDATA%\Watchink\WebView2, next to the default data directory
-// (§6.1), instead of Wails' default of a roaming folder named after the
+// %LOCALAPPDATA%\Watchink\WebView2, next to the default data directory,
+// instead of Wails' default of a roaming folder named after the
 // executable. Empty selects that default.
 func webviewUserDataPath() string {
 	if runtime.GOOS != "windows" {

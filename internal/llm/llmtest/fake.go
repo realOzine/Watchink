@@ -1,5 +1,5 @@
 // Package llmtest provides a scriptable fake OpenAI-compatible Chat
-// Completions server (docs/v0.md §17.2). It is used by unit tests and by
+// Completions server. It is used by unit tests and by
 // end-to-end runs that must not need a real API key.
 //
 // By default it recognises the prompts produced by internal/notes (by their

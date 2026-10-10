@@ -25,7 +25,7 @@ const (
 
 // setProcessGroup makes the child the leader of a new process group, so one
 // signal to -pid reaches the tool and everything it spawned, and asks the
-// kernel to SIGKILL it when the engine dies (§5.5). No guard process is
+// kernel to SIGKILL it when the engine dies. No guard process is
 // needed on Linux.
 //
 // Pdeathsig is tied to the thread that forked, not to the process. That is
@@ -33,7 +33,8 @@ const (
 // while locked to it, and Run is never called from such a goroutine.
 //
 // Pdeathsig reaches the direct child only. Descendants that outlive it are
-// not signalled by the kernel; see docs/spikes/v0-linux.md.
+// not signalled by the kernel: a tool's own child processes can survive an
+// engine that was killed outright.
 func setProcessGroup(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGKILL}
 }
@@ -55,7 +56,7 @@ func processExe(pid int) (link, exe string, ok bool) {
 }
 
 // KillIfMatches kills a child left over from a previous engine, but only when
-// the process with that pid still runs the recorded executable (§7.6 step 3):
+// the process with that pid still runs the recorded executable (step 3):
 // a recycled pid must never be killed. It returns true when a kill was sent.
 //
 // Children are recorded with the tool's own path on Linux (there is no
@@ -78,8 +79,8 @@ func KillIfMatches(pid int, exe string) (bool, error) {
 }
 
 // GuardMain is the `watchink _guard` subcommand, which only macOS uses: on
-// Linux the kernel ends the children of a dead engine through Pdeathsig
-// (§5.5), so the Runner never starts a guard and this only reports misuse.
+// Linux the kernel ends the children of a dead engine through Pdeathsig,
+// so the Runner never starts a guard and this only reports misuse.
 func GuardMain(args []string) int {
 	fmt.Fprintln(os.Stderr, "watchink _guard is only used on macOS; Linux relies on Pdeathsig")
 	return 2

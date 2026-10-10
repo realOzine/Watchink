@@ -1,4 +1,4 @@
-# Windows amd64: tests, release build and smoke checks (docs/v0.md §16.2).
+# Windows amd64: tests, release build and smoke checks.
 #
 # The Windows port is developed on macOS, where its code can only be compiled.
 # This workflow is where it actually runs, so every step is a real check:
@@ -6,8 +6,8 @@
 #   test    go vet + go test on Windows, including the Job Object tests of
 #           internal/procx and the desktop shell's unit tests
 #   build   whisper-cli (MSVC, static runtime) -> transcription smoke with
-#           non-ASCII paths -> release zip -> S-02 criteria that can be
-#           automated (docs/v0.md §16.5, docs/spikes/v0-windows.md)
+#           non-ASCII paths -> release zip -> the console / GUI behaviour
+#           that can be checked automatically
 #   e2e     the released zip processes a real audio file end to end with
 #           downloaded FFmpeg, the embedded whisper-cli and a fake LLM
 #
@@ -81,7 +81,7 @@ jobs:
       - name: Enable corepack
         run: corepack enable
 
-      # --- whisper-cli (S-06) ------------------------------------------------
+      # --- whisper-cli ------------------------------------------------
       - name: Cache whisper-cli
         id: whisper-cache
         uses: actions/cache@v4
@@ -139,8 +139,8 @@ jobs:
           path: internal/tools/embedded/bin/windows-amd64/whisper-cli.exe*
           if-no-files-found: error
 
-      # --- S-02 --------------------------------------------------------------
-      - name: "S-02: subsystems and resources"
+      # --- console and GUI executables ------------------------------------------
+      - name: "subsystems and resources"
         if: ${{ !cancelled() && steps.release.outcome == 'success' }}
         shell: pwsh
         run: |
@@ -170,7 +170,7 @@ jobs:
           "PowerShell resolves '.\watchink' to $ps"
           if ($ps -notlike '*watchink.com') { throw "PowerShell resolves '.\watchink' to $ps" }
 
-      - name: "S-02: cmd waits, output complete, pipe works"
+      - name: "cmd waits, output complete, pipe works"
         if: ${{ !cancelled() && steps.release.outcome == 'success' }}
         shell: cmd
         run: |
@@ -185,7 +185,7 @@ jobs:
           rem The dot stands for the JSON quote, which cmd would mis-pair.
           watchink version --json | findstr /r /c:"desktop.:true" || exit /b 1
 
-      - name: "S-02: Windows PowerShell 5.1 waits, output complete, pipe works"
+      - name: "Windows PowerShell 5.1 waits, output complete, pipe works"
         if: ${{ !cancelled() && steps.release.outcome == 'success' }}
         shell: powershell
         run: |
@@ -202,7 +202,7 @@ jobs:
           if ($help -notmatch 'MCP stdio') { throw "help text is damaged: $help" }
           'ok'
 
-      - name: "S-02: PowerShell 7 waits, output complete, pipe works"
+      - name: "PowerShell 7 waits, output complete, pipe works"
         if: ${{ !cancelled() && steps.release.outcome == 'success' }}
         shell: pwsh
         run: |
@@ -216,7 +216,7 @@ jobs:
           if ($help -notmatch '桌面窗口') { throw "help text is damaged: $help" }
           'ok'
 
-      - name: "S-02: MCP over stdio"
+      - name: "MCP over stdio"
         if: ${{ !cancelled() && steps.release.outcome == 'success' }}
         run: go run scripts/mcpsmoke.go "$PWD/dist/Watchink/watchink.com"
 
@@ -234,13 +234,13 @@ jobs:
           # The step's result is the checks above, not doctor's exit code.
           $global:LASTEXITCODE = 0
 
-      # S-01 as far as it can be automated: the page inside the window asks
+      # as far as it can be automated: the page inside the window asks
       # the shell for the engine (the EngineInfo binding) as soon as it loads,
       # and the shell then starts one. An engine appearing in a fresh data
       # directory therefore means: the GUI executable started without a
       # console, WebView2 loaded the embedded frontend, a binding call worked
       # and the detached spawn worked from a GUI-subsystem process.
-      - name: "S-01 / S-02: Watchink.exe opens a window without a console"
+      - name: "Watchink.exe opens a window without a console"
         if: ${{ !cancelled() && steps.release.outcome == 'success' }}
         shell: pwsh
         run: |
@@ -337,7 +337,7 @@ jobs:
           Invoke-Watchink config set security.import_roots "~,$media" | Out-Null
 
           # Downloads FFmpeg (BtbN) and the default model, extracts the
-          # embedded whisper-cli, smoke-tests each: §11.3 on Windows.
+          # embedded whisper-cli, smoke-tests each: on Windows.
           Invoke-Watchink tools prepare --wait
           $tools = Invoke-Watchink tools status --json | ConvertFrom-Json
           $tools.items | Format-Table name, status, version -AutoSize
@@ -354,7 +354,7 @@ jobs:
           Invoke-Watchink export $vid --format md --out $media | Out-Null
           if (-not (Get-ChildItem $media -Filter *.md)) { throw 'export wrote no file' }
 
-          # Importing the same file again is answered from what exists (§7.5).
+          # Importing the same file again is answered from what exists.
           $again = Invoke-Watchink import $sample --json | ConvertFrom-Json
           "second import: $($again.status)"
           if ($again.status -ne 'already_processed') { throw "second import: $($again.status)" }

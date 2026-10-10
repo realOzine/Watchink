@@ -16,14 +16,14 @@ import (
 )
 
 const (
-	// sampleBytes is the size of each of the three sampled windows (§6.6).
+	// sampleBytes is the size of each of the three sampled windows.
 	sampleBytes = 4 << 20
-	// sampleWholeBelow: smaller files are hashed completely (§6.6).
+	// sampleWholeBelow: smaller files are hashed completely.
 	sampleWholeBelow = 3 * sampleBytes
 	copyBufBytes     = 1 << 20
 )
 
-// SampleHash computes the dedupe key of a local file or upload (§6.6, D-13):
+// SampleHash computes the dedupe key of a local file or upload:
 //
 //	file:<size>:<sha256(head 4 MiB ‖ middle 4 MiB ‖ tail 4 MiB)>
 //
@@ -60,7 +60,7 @@ func SampleHash(path string) (key string, size int64, err error) {
 }
 
 // CopyWithSHA256 copies src to dst and returns the full sha256 of the content
-// computed on the way (D-13). The data goes to a temporary file in dst's
+// computed on the way. The data goes to a temporary file in dst's
 // directory, is fsynced, and only then renamed over dst, so a crash never
 // leaves a partial dst. A full disk is reported as DISK_FULL.
 func CopyWithSHA256(ctx context.Context, src, dst string) (sha string, n int64, err error) {

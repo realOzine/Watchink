@@ -147,7 +147,7 @@ export function createClient(platform: Platform, fetchImpl: typeof fetch = (...a
     getPlayback: (videoId: string, signal?: AbortSignal) =>
       get<Playback>(`/videos/${id(videoId)}/playback`, undefined, signal),
 
-    /** Reads every page of the note via offset / next_offset (§13.1 long text). */
+    /** Reads every page of the note via offset / next_offset (long text). */
     async getFullNote(videoId: string, signal?: AbortSignal): Promise<FullNote> {
       let page = await get<Note>(`/videos/${id(videoId)}/note`, { format: 'markdown' }, signal);
       const first = page;
@@ -221,7 +221,7 @@ export function createClient(platform: Platform, fetchImpl: typeof fetch = (...a
 
     /**
      * Streams a file as the raw request body. XHR (not fetch) because it is the
-     * only way to observe upload progress in every browser (§14.2).
+     * only way to observe upload progress in every browser.
      */
     async upload(file: File, onProgress: (fraction: number) => void, signal?: AbortSignal): Promise<Upload> {
       const conn = await platform.connect();

@@ -6,7 +6,7 @@ import (
 )
 
 // lru is a small least-recently-used cache for data that never changes once
-// written: transcript versions and note versions are immutable (§6.3), so
+// written: transcript versions and note versions are immutable, so
 // their rows can be kept in memory without any invalidation. It exists
 // because reading them back row by row from SQLite dominates the read API
 // (see internal/bench).

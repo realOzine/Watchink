@@ -11,7 +11,7 @@ import (
 	"watchink/internal/llm"
 )
 
-// Limits of the reduce step (§9.3, §9.8).
+// Limits of the reduce step.
 const (
 	reduceMaxTokens     = 4000
 	twoLevelPoints      = 120   // more points than this → two-level reduce
@@ -25,7 +25,7 @@ const (
 )
 
 // ReduceInput is the input of the reduce step: titles, durations and the map
-// results. Reduce never sees transcript segments (D-09).
+// results. Reduce never sees transcript segments.
 type ReduceInput struct {
 	VideoTitle string
 	DurationMs int64
@@ -56,7 +56,7 @@ type Takeaway struct {
 	PointIDs []string `json:"point_ids"`
 }
 
-// ReduceStats records what validation and completion had to do (§9.3, §9.6).
+// ReduceStats records what validation and completion had to do.
 type ReduceStats struct {
 	Points int `json:"points"`
 	// PointsUnplaced counts valid points the model left out of every section
@@ -87,7 +87,7 @@ type ReduceResult struct {
 	Stats         ReduceStats `json:"stats"`
 }
 
-// Model-facing schemas (§9.3).
+// Model-facing schemas.
 type outOverview struct {
 	Text     string   `json:"text" desc:"200–400 字概览"`
 	PointIDs []string `json:"point_ids" desc:"支撑概览的要点编号，形如 P1.2"`
@@ -159,7 +159,7 @@ type reducer struct {
 	stats  ReduceStats
 }
 
-// Reduce organises the points of all chunks into the note outline (§9.3) and
+// Reduce organises the points of all chunks into the note outline and
 // then validates and completes the model's answer so that every valid point
 // ends up in exactly one section. With many points it switches to the
 // two-level reduce.
@@ -226,7 +226,7 @@ func Reduce(ctx context.Context, c llm.Client, in ReduceInput) (*ReduceResult, e
 		res.Title = fallbackNoteTitle
 	}
 	// The overview and every takeaway must be backed by at least one known
-	// point, otherwise they are dropped (§9.3).
+	// point, otherwise they are dropped.
 	res.Overview = Overview{Text: truncateRunes(oneLine(fr.overview.Text), 1500),
 		PointIDs: r.knownIDs(fr.overview.PointIDs, maxOverviewPoints)}
 	if res.Overview.Text == "" || len(res.Overview.PointIDs) == 0 {
@@ -296,7 +296,7 @@ func (r *reducer) setRange(s *Section) {
 }
 
 // complete validates the sections proposed for the given points and puts back
-// every point the model left out (§9.3):
+// every point the model left out:
 //   - unknown ids are removed, and a point stays only where it first appears;
 //   - an unplaced point is appended to the section closest in time, or to a
 //     new "其他要点" section when there is none.
@@ -483,7 +483,7 @@ func (r *reducer) reduceGroup(g group, part string) ([]Section, error) {
 	return r.complete(out.Sections, g.points), nil
 }
 
-// twoLevel is the §9.3 two-level reduce: each group of chunks is reduced to
+// twoLevel is the two-level reduce: each group of chunks is reduced to
 // sections, then one final call sees only the sections and produces the
 // title, overview and takeaways, optionally merging adjacent sections by id.
 func (r *reducer) twoLevel() ([]Section, frame, error) {

@@ -50,7 +50,7 @@ func procRunning(pid int) bool {
 	return len(f) > 0 && f[0] != "Z" && f[0] != "X"
 }
 
-// §5.5: when the engine dies without a chance to clean up, the kernel kills
+// when the engine dies without a chance to clean up, the kernel kills
 // its children through Pdeathsig.
 func TestPdeathsigKillsChildWhenParentDies(t *testing.T) {
 	self, _ := os.Executable()

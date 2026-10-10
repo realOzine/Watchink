@@ -61,7 +61,7 @@ func (p *Pipeline) acquire(ctx context.Context, sc *jobs.StageContext) (*jobs.St
 	return done(a), nil
 }
 
-// copyLocalFile copies the file into the library, hashing on the way (D-13).
+// copyLocalFile copies the file into the library, hashing on the way.
 func (p *Pipeline) copyLocalFile(ctx context.Context, sc *jobs.StageContext, v *store.Video, from string) (sourceFile, error) {
 	if from == "" {
 		return sourceFile{}, app.E(app.CodeInvalidArgument, "任务缺少本地文件路径")
@@ -105,7 +105,7 @@ func (p *Pipeline) download(ctx context.Context, sc *jobs.StageContext, v *store
 	}
 	deno := ""
 	if v.SourceType == app.SourceYouTube {
-		// yt-dlp needs an external JS runtime for YouTube only (§11.5).
+		// yt-dlp needs an external JS runtime for YouTube only.
 		if deno, err = p.tools.Path(tools.ToolDeno); err != nil {
 			return sourceFile{}, err
 		}

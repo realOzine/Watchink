@@ -1,5 +1,4 @@
-// Package api is the HTTP transport of the engine (docs/v0.md §13.2, §13.3,
-// §15). It maps every route 1:1 onto an app.Local and holds no business logic:
+// Package api is the HTTP transport of the engine. It maps every route 1:1 onto an app.Local and holds no business logic:
 // argument parsing, authentication, CORS, the event stream framing and the
 // embedded SPA are the only things implemented here.
 package api
@@ -20,11 +19,11 @@ import (
 	"watchink/internal/app"
 )
 
-// DefaultAllowedOrigins are the WebView origins allowed by CORS (§15): the
+// DefaultAllowedOrigins are the WebView origins allowed by CORS: the
 // Wails v2 origin on macOS, and the one used on Windows (WebView2).
 var DefaultAllowedOrigins = []string{"wails://wails", "http://wails.localhost"}
 
-// DefaultHeartbeat is the event-stream heartbeat interval (§13.3).
+// DefaultHeartbeat is the event-stream heartbeat interval.
 const DefaultHeartbeat = 15 * time.Second
 
 // Response headers added by this package (all listed in
@@ -39,7 +38,7 @@ const (
 	HeaderTruncated   = "X-WK-Truncated"
 	HeaderNextStartMs = "X-WK-Next-Start-Ms"
 	// HeaderRequest is the custom header required on cookie-authenticated
-	// state-changing requests (§15).
+	// state-changing requests.
 	HeaderRequest = "X-WK-Request"
 	// HeaderFilename carries the percent-encoded upload file name.
 	HeaderFilename = "X-Filename"
@@ -80,7 +79,7 @@ type Options struct {
 	Now func() time.Time
 }
 
-// Stats is the activity snapshot the engine uses for idle exit (§5.4).
+// Stats is the activity snapshot the engine uses for idle exit.
 type Stats struct {
 	// Subscribers is the number of live event-stream connections.
 	Subscribers int
@@ -220,7 +219,7 @@ func (h *Handler) routes() {
 }
 
 // ServeHTTP applies, in order: panic recovery and request logging, the common
-// security headers, the Host check (§15), CORS, then routing. Authentication
+// security headers, the Host check, CORS, then routing. Authentication
 // is per route because /health, /media and the SPA shell are
 // reachable without a bearer token or cookie.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -297,7 +296,7 @@ func (w *statusWriter) ReadFrom(r io.Reader) (int64, error) {
 
 func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
-// redactedQueryKeys are the query parameters whose values are secrets (§15).
+// redactedQueryKeys are the query parameters whose values are secrets.
 var redactedQueryKeys = map[string]bool{"token": true, "code": true, "mt": true, "access_token": true}
 
 // RedactQuery renders a raw query string with secret values masked.

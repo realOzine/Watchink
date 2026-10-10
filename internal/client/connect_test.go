@@ -192,7 +192,7 @@ func TestConnectColdStartSpawnsEngine(t *testing.T) {
 	wantCode(t, err, app.CodeEngineUnavailable)
 }
 
-// TestConcurrentColdStartsConvergeOnOneEngine is S-09: three clients cold
+// TestConcurrentColdStartsConvergeOnOneEngine: three clients cold
 // start at once and exactly one engine results.
 func TestConcurrentColdStartsConvergeOnOneEngine(t *testing.T) {
 	for round := 0; round < 5; round++ {

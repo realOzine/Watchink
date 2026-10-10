@@ -281,7 +281,7 @@ func (fx *fixture) ok(name string, args any) map[string]any {
 	return structured
 }
 
-// fail asserts an isError result carrying the §7.7 error object.
+// fail asserts an isError result carrying the error object.
 func (fx *fixture) fail(name string, args any) *app.Error {
 	fx.t.Helper()
 	res := fx.call(name, args)
@@ -322,7 +322,7 @@ func TestInitializeAndDiscoveryWithoutEngine(t *testing.T) {
 		}
 	}
 	if init.Capabilities.Tools == nil || init.Capabilities.Resources != nil || init.Capabilities.Prompts != nil {
-		t.Errorf("capabilities = %+v (tools only, D-12)", init.Capabilities)
+		t.Errorf("capabilities = %+v (tools only)", init.Capabilities)
 	}
 	res, err := fx.session.ListTools(context.Background(), nil)
 	if err != nil {
@@ -444,7 +444,7 @@ func TestToolListSchemasAndAnnotations(t *testing.T) {
 		}
 	}
 
-	// Annotations per the §13.5 table.
+	// Annotations per the table.
 	type hints struct{ readOnly, idempotent bool }
 	wantHints := map[string]hints{
 		ToolImportVideo: {false, true}, ToolGetJob: {true, false}, ToolCancelJob: {false, true}, ToolRetryJob: {false, false},
@@ -640,7 +640,7 @@ func TestGetNote(t *testing.T) {
 	}
 	slices.Sort(keys)
 	if want := []string{"citations", "content", "coverage", "format", "next_offset", "note_id", "title", "total_chars"}; !slices.Equal(keys, want) {
-		t.Errorf("output members = %v, want exactly %v (§13.5)", keys, want)
+		t.Errorf("output members = %v, want exactly %v", keys, want)
 	}
 	if out["next_offset"] != float64(100) || out["total_chars"] != float64(500) || out["citations"].([]any)[0].(map[string]any)["segment_id"] != "seg_a" {
 		t.Errorf("out = %v", out)
@@ -665,7 +665,7 @@ func TestGetTranscript(t *testing.T) {
 	}
 	slices.Sort(keys)
 	if want := []string{"language", "next_start_ms", "segments", "transcript_id", "truncated"}; !slices.Equal(keys, want) {
-		t.Errorf("output members = %v, want exactly %v (§13.5)", keys, want)
+		t.Errorf("output members = %v, want exactly %v", keys, want)
 	}
 	if out["truncated"] != true || out["next_start_ms"] != float64(9000) || out["segments"].([]any)[0].(map[string]any)["text"] != "大家好" {
 		t.Errorf("out = %v", out)

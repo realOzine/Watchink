@@ -126,7 +126,7 @@ func TestPostProcess(t *testing.T) {
 			if !reflect.DeepEqual(in, tt.raw) {
 				t.Error("input slice was modified")
 			}
-			// Invariants of §8.2 step 3, whatever the input.
+			// Invariants, whatever the input.
 			var prev int64
 			for i, s := range got {
 				if s.StartMs >= s.EndMs || s.StartMs < prev || s.StartMs < 0 || s.Text == "" || s.Text != strings.TrimSpace(s.Text) {

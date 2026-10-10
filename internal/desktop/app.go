@@ -24,13 +24,13 @@ import (
 
 // TokenProvider is the optional interface the app.Remote returned by
 // Options.Connect must also implement: the WebView talks to the engine over
-// HTTP itself (D-04) and therefore needs the bearer token, which app.Remote
+// HTTP itself and therefore needs the bearer token, which app.Remote
 // does not expose.
 type TokenProvider interface {
 	Token() string
 }
 
-// EngineInfo is the result of the EngineInfo binding (§13.6).
+// EngineInfo is the result of the EngineInfo binding.
 type EngineInfo struct {
 	BaseURL string `json:"base_url"`
 	Token   string `json:"token"`
@@ -44,7 +44,7 @@ type Snippet struct {
 	Content  string `json:"content"`
 }
 
-// AgentSetup is the result of the AgentSetupInfo binding (§13.6).
+// AgentSetup is the result of the AgentSetupInfo binding.
 type AgentSetup struct {
 	Executable string    `json:"executable"`
 	MCPCommand []string  `json:"mcp_command"`
@@ -52,7 +52,7 @@ type AgentSetup struct {
 }
 
 // VideoExtensions are the extensions offered by the PickVideoFile dialog. The
-// filter is a convenience only; the engine probes the file (§7.2).
+// filter is a convenience only; the engine probes the file.
 var VideoExtensions = []string{
 	"mp4", "m4v", "mov", "mkv", "webm", "avi", "flv", "wmv", "ts", "m2ts", "mts", "mpg", "mpeg", "3gp", "ogv",
 }
@@ -61,7 +61,7 @@ var VideoExtensions = []string{
 const engineCheckTimeout = 5 * time.Second
 
 // App is the single struct bound into the WebView. Its exported methods are
-// exactly the six bindings of §13.6, reachable from the frontend as
+// exactly the six bindings, reachable from the frontend as
 // window.go.desktop.App.<Method>; do not add exported methods.
 //
 // A failed call rejects with an Error whose message is the JSON text of an
@@ -102,7 +102,7 @@ func (a *App) setContext(ctx context.Context) {
 }
 
 // engine returns a live connection and the engine's self-description,
-// connecting on first use and reconnecting (which respawns the engine, §5.2)
+// connecting on first use and reconnecting (which respawns the engine)
 // when the previous engine has gone away — e.g. after an idle exit.
 func (a *App) engine(ctx context.Context) (app.Remote, *app.EngineInfo, error) {
 	a.mu.Lock()
@@ -136,7 +136,7 @@ func (a *App) engine(ctx context.Context) (app.Remote, *app.EngineInfo, error) {
 }
 
 // close drops the engine connection. The engine itself keeps running: closing
-// the window only ends the desktop process (§5.4).
+// the window only ends the desktop process.
 func (a *App) close() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -147,7 +147,7 @@ func (a *App) close() {
 }
 
 // EngineInfo makes sure the engine is running and returns its base URL and
-// bearer token; the frontend then calls the HTTP API directly (D-04).
+// bearer token; the frontend then calls the HTTP API directly.
 func (a *App) EngineInfo() (EngineInfo, error) {
 	r, info, err := a.engine(a.context())
 	if err != nil {
@@ -183,7 +183,7 @@ func (a *App) PickVideoFile() (string, error) {
 
 // SaveExport shows the native save dialog and copies the export from the
 // engine to the chosen location. The desktop process writes the file itself
-// because the engine only writes inside the data dir (D-15). It returns the
+// because the engine only writes inside the data dir. It returns the
 // written path, or "" when the user cancels.
 func (a *App) SaveExport(exportID, suggestedName string) (string, error) {
 	if exportID == "" {
@@ -310,7 +310,7 @@ func within(root, path string) bool {
 
 // RevealInFileManager shows a file or folder in Finder (Explorer on Windows).
 // Only paths that are inside the engine's data dir after resolving symlinks
-// are accepted (§15).
+// are accepted.
 func (a *App) RevealInFileManager(path string) error {
 	if path == "" || !filepath.IsAbs(path) {
 		return app.E(app.CodeInvalidArgument, "路径必须是绝对路径")
@@ -421,7 +421,7 @@ func shellQuote(s string) string {
 }
 
 // formatError is the Wails ErrorFormatter: every binding failure reaches
-// JavaScript as the JSON text of an app.Error (§7.7). The Wails v2 runtime
+// JavaScript as the JSON text of an app.Error. The Wails v2 runtime
 // rejects the promise with `new Error(<that text>)`, so the frontend reads it
 // with JSON.parse(err.message). It must stay a string: an object would be
 // stringified to "[object Object]" by that wrapper.

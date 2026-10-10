@@ -15,8 +15,8 @@ import (
 	"watchink/internal/app"
 )
 
-// SourceRef is a normalized link source: the dedupe key of §6.6 plus the
-// canonical URL that is safe to hand to yt-dlp (§15).
+// SourceRef is a normalized link source: the dedupe key plus the
+// canonical URL that is safe to hand to yt-dlp.
 type SourceRef struct {
 	// Type is app.SourceYouTube or app.SourceBilibili.
 	Type string `json:"type"`
@@ -32,7 +32,7 @@ type SourceRef struct {
 	NeedsResolve bool `json:"needs_resolve,omitempty"`
 }
 
-// shortLinkTimeout is the §6.6 limit for resolving a b23.tv link.
+// shortLinkTimeout is the limit for resolving a b23.tv link.
 const shortLinkTimeout = 5 * time.Second
 
 var (
@@ -50,7 +50,7 @@ func unsupported(format string, args ...any) *app.Error {
 }
 
 // NormalizeURL turns a user-supplied link into a SourceRef without touching
-// the network (§6.6, D-13). Hosts other than YouTube / Bilibili, and links
+// the network. Hosts other than YouTube / Bilibili, and links
 // that do not identify a single video (playlists, channels, live rooms…),
 // return UNSUPPORTED_SOURCE. A b23.tv short link returns NeedsResolve.
 func NormalizeURL(raw string) (*SourceRef, error) {
@@ -110,7 +110,7 @@ func normalizeYouTube(u *url.URL, segs []string) (*SourceRef, error) {
 	}
 	switch segs[0] {
 	case "watch":
-		// list= / index= / t= and friends are ignored on purpose (§6.6).
+		// list= / index= / t= and friends are ignored on purpose.
 		v := u.Query().Get("v")
 		if v == "" {
 			return nil, unsupported("链接中没有视频 ID")
@@ -229,7 +229,7 @@ func AVToBV(aid uint64) (string, error) {
 }
 
 // ResolveShortLink resolves a b23.tv short link by following its redirects
-// (at most 5 hops, 5 s in total — §6.6) and normalizes the target, which must
+// (at most 5 hops, 5 s in total) and normalizes the target, which must
 // be a Bilibili video. Only b23.tv itself is ever contacted: the walk stops
 // at the first redirect that leaves that host. client may be nil.
 func ResolveShortLink(ctx context.Context, client *http.Client, rawURL string) (*SourceRef, error) {

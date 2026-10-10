@@ -37,7 +37,7 @@ func (p *Pipeline) language(opt JobOptions) string {
 	return "auto"
 }
 
-// HTTPClient returns a client honouring network.proxy (§11.4); an empty
+// HTTPClient returns a client honouring network.proxy; an empty
 // proxy follows the environment.
 func HTTPClient(proxy string) *http.Client {
 	tr := http.DefaultTransport.(*http.Transport).Clone()
@@ -50,7 +50,7 @@ func HTTPClient(proxy string) *http.Client {
 }
 
 // LLMConfig builds the online model configuration from the settings and the
-// resolved credential (D-14).
+// resolved credential.
 func LLMConfig(cfg app.Settings, acquire func(context.Context) (func(), error)) llm.Config {
 	key, _ := config.ResolveLLMAPIKey(cfg)
 	timeout, err := config.ParseDuration(cfg.LLM.Timeout)

@@ -82,7 +82,7 @@ function patchList<P, T extends { status: string }>(
 
 export function applyJob(qc: QueryClient, job: Job): void {
   const prev = qc.getQueryData<Job>(keys.job(job.job_id));
-  // Replayed or reordered frames must not roll a job back (§7.3: rev only grows).
+  // Replayed or reordered frames must not roll a job back (rev only grows).
   if (prev && prev.rev > job.rev) return;
   qc.setQueryData(keys.job(job.job_id), job);
 
@@ -150,7 +150,7 @@ export function applyTools(qc: QueryClient, tools: ToolsStatus): void {
 export type EventOutcome = 'applied' | 'reset' | 'stopping' | 'ignored';
 
 /**
- * Applies one event-stream frame to the query cache (docs/v0.md §13.3), so
+ * Applies one event-stream frame to the query cache, so
  * pages are live without polling. `data` is the bare object for the event type.
  */
 export function applyEventFrame(qc: QueryClient, frame: SseFrame): EventOutcome {

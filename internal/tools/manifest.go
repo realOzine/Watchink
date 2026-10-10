@@ -1,9 +1,9 @@
 // Package tools prepares the external programs and models Watchink needs
-// (docs/v0.md D-06, §11): it downloads pinned releases listed in the built-in
+// : it downloads pinned releases listed in the built-in
 // manifest, verifies their sha256, installs them atomically under the data
 // directory, and extracts the whisper-cli binary embedded in the executable.
 //
-// The package never starts a process itself (§4.3): smoke tests run through an
+// The package never starts a process itself: smoke tests run through an
 // injected ExecFunc, and only after the file being run passed verification.
 package tools
 
@@ -30,7 +30,7 @@ const (
 	ArchiveTarXz = "tar.xz" // LZMA2 only, decoded by xz.go
 )
 
-// Manifest is the pinned list of tools and models (§11.1).
+// Manifest is the pinned list of tools and models.
 type Manifest struct {
 	ManifestVersion int              `json:"manifest_version"`
 	Tools           map[string]Tool  `json:"tools"`
@@ -49,7 +49,7 @@ type Tool struct {
 	// SmokeArgs are the arguments of the post-install smoke test; the default
 	// is ["--version"].
 	SmokeArgs []string `json:"smoke_args,omitempty"`
-	// Update describes where newer upstream releases are found (§11.5).
+	// Update describes where newer upstream releases are found.
 	Update    *UpdateSource       `json:"update,omitempty"`
 	Platforms map[string]Platform `json:"platforms,omitempty"`
 }

@@ -12,6 +12,13 @@
           "size": 28395699,
           "archive": "zip",
           "files": {"ffmpeg": "ffmpeg"}
+        },
+        "linux-amd64": {
+          "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-30-13-08/ffmpeg-n9.0.2-17-g2a571b6068-linux64-gpl-9.0.tar.xz",
+          "sha256": "68ee646831adaae2495618346f3bba94ff207ff83bbd34d643e7004730d66269",
+          "size": 151017172,
+          "archive": "tar.xz",
+          "files": {"ffmpeg-n9.0.2-17-g2a571b6068-linux64-gpl-9.0/bin/ffmpeg": "ffmpeg"}
         }
       }
     },
@@ -26,6 +33,13 @@
           "size": 28317701,
           "archive": "zip",
           "files": {"ffprobe": "ffprobe"}
+        },
+        "linux-amd64": {
+          "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-30-13-08/ffmpeg-n9.0.2-17-g2a571b6068-linux64-gpl-9.0.tar.xz",
+          "sha256": "68ee646831adaae2495618346f3bba94ff207ff83bbd34d643e7004730d66269",
+          "size": 151017172,
+          "archive": "tar.xz",
+          "files": {"ffmpeg-n9.0.2-17-g2a571b6068-linux64-gpl-9.0/bin/ffprobe": "ffprobe"}
         }
       }
     },
@@ -44,6 +58,13 @@
           "size": 37146048,
           "archive": "none",
           "files": {"yt-dlp_macos": "yt-dlp"}
+        },
+        "linux-amd64": {
+          "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp_linux",
+          "sha256": "58162f9bfdc27458ea47bfcb311cf47028f17d8154a8bf7d689861d46399230a",
+          "size": 40446224,
+          "archive": "none",
+          "files": {"yt-dlp_linux": "yt-dlp"}
         }
       }
     },
@@ -56,6 +77,13 @@
           "url": "https://github.com/denoland/deno/releases/download/v2.9.7/deno-aarch64-apple-darwin.zip",
           "sha256": "5cd46d6268f6f78f5d88bdc7159d20bd44cdaa4b3303474839f87ec6fe7ae25c",
           "size": 38469316,
+          "archive": "zip",
+          "files": {"deno": "deno"}
+        },
+        "linux-amd64": {
+          "url": "https://github.com/denoland/deno/releases/download/v2.9.7/deno-x86_64-unknown-linux-gnu.zip",
+          "sha256": "c6527f24f4b16031d3ae4fa9f658d5f11534c8d84ce7dc8502420280919c3490",
+          "size": 41596794,
           "archive": "zip",
           "files": {"deno": "deno"}
         }

@@ -6,9 +6,11 @@ import (
 	"context"
 	"os"
 
+	"watchink/internal/cli"
 	"watchink/internal/client"
 	"watchink/internal/desktop"
 	"watchink/internal/procx"
+	"watchink/internal/sysreq"
 	"watchink/internal/version"
 	"watchink/internal/webui"
 )
@@ -21,4 +23,14 @@ var runDesktop = func(_ context.Context, dataDir string) error {
 		Connect: client.Connect, DataDir: dataDir, Assets: assets,
 		Version: version.Version, Executable: exe, Reveal: procx.RevealInFileManager,
 	})
+}
+
+// desktopPrereqs hands `doctor` the system libraries the window needs
+// (§16.3); the list is empty on macOS.
+var desktopPrereqs = func() []cli.SystemPrereq {
+	var out []cli.SystemPrereq
+	for _, r := range sysreq.Desktop() {
+		out = append(out, cli.SystemPrereq{Name: r.Name, Package: r.Package, Optional: r.Optional, Found: r.Found})
+	}
+	return out
 }

@@ -71,6 +71,11 @@ type Deps struct {
 	// IsEngineRunning reports whether an engine currently owns dataDir. It
 	// must not spawn one.
 	IsEngineRunning func(dataDir string) bool
+	// DesktopPrereqs lists the system libraries the desktop window needs on
+	// this platform and whether each was found (`doctor`, §16.3). It is
+	// optional; nil or an empty result means there is nothing to check, as on
+	// macOS, which ships its WebView with the system.
+	DesktopPrereqs func() []SystemPrereq
 
 	// Stdin is the input for secrets and interactive setup; nil means no
 	// input is available.

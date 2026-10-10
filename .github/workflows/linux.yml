@@ -1,0 +1,186 @@
+# Linux amd64: build, test and smoke-test Watchink on Ubuntu 24.04
+# (docs/v0.md §16.2, §16.3; spikes S-01, S-03, S-07, S-08 for Linux).
+#
+# The Linux port is developed on macOS, so this workflow is where it is
+# actually compiled with cgo and run. What each step proves is recorded in
+# docs/spikes/v0-linux.md.
+name: linux
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+
+jobs:
+  build:
+    name: build, test, package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      # Build packages (§16.1) plus the runtime packages of §16.3, so that
+      # `doctor` and the window check below see a complete system.
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config cmake file \
+            libgtk-3-dev libwebkit2gtk-4.1-dev \
+            gstreamer1.0-plugins-good gstreamer1.0-libav \
+            xvfb xauth dbus xdg-utils
+
+      - name: gofmt
+        run: |
+          out="$(gofmt -l cmd internal scripts build)"
+          if [ -n "$out" ]; then echo "gofmt needed:"; echo "$out"; exit 1; fi
+
+      - name: Build whisper-cli (static, CPU)
+        run: |
+          bash third_party/whisper/build.sh linux amd64
+          bin=internal/tools/embedded/bin/linux-amd64/whisper-cli
+          file "$bin" | tee whisper-file.txt
+          grep -q 'statically linked' whisper-file.txt
+          test "$(sha256sum "$bin" | cut -d' ' -f1)" = "$(cut -d' ' -f1 "$bin.sha256")"
+          "$bin" --help >/dev/null
+          "$bin" --version
+
+      - name: go vet
+        run: |
+          go vet ./...
+          go vet -tags nogui ./...
+          CGO_ENABLED=1 go vet -tags desktop,webkit2_41 ./...
+
+      - name: go test
+        run: go test ./...
+
+      - name: go test (desktop shell)
+        run: CGO_ENABLED=1 go test -tags desktop,webkit2_41 ./internal/desktop/...
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          corepack pnpm install --frozen-lockfile
+          corepack pnpm build
+
+      - name: Build the desktop ELF and the headless binary
+        run: SKIP_FRONTEND=1 bash scripts/build-linux.sh package
+
+      - name: Inspect the binaries
+        run: |
+          set -euo pipefail
+          gui="$(ls dist/watchink-[0-9]*-linux-amd64)"
+          headless="$(ls dist/watchink-headless-*-linux-amd64)"
+          ls -l dist
+          file "$gui" "$headless"
+          # The GUI build must link WebKitGTK 4.1 (libsoup 3), never 4.0.
+          ldd "$gui" > ldd.txt
+          grep -E 'libwebkit2gtk-4\.1\.so|libgtk-3\.so' ldd.txt
+          if grep -q 'libwebkit2gtk-4\.0' ldd.txt; then echo "linked against WebKitGTK 4.0"; exit 1; fi
+          # The headless build is pure Go: no dynamic dependencies at all.
+          file "$headless" > headless-file.txt
+          grep -q 'statically linked' headless-file.txt
+          (cd dist && sha256sum -c SHA256SUMS)
+          echo "GUI=$gui" >> "$GITHUB_ENV"
+          echo "HEADLESS=$headless" >> "$GITHUB_ENV"
+
+      # S-03: no graphical session. The script unsets DISPLAY itself.
+      - name: Smoke test without a display (headless build)
+        run: bash scripts/smoke-linux.sh "$HEADLESS"
+
+      - name: Smoke test without a display (desktop build)
+        run: bash scripts/smoke-linux.sh "$GUI" --gui
+
+      # S-01, as far as a machine can check it: under a virtual X server the
+      # window must come up and the embedded frontend must run and call a
+      # binding. The engine is only started by the frontend's first EngineInfo
+      # call, so a running engine shows that GTK, WebKitGTK, the asset server
+      # and the bindings all work. Nobody looks at the window; rendering and
+      # video playback (S-05) still need a person at a real desktop. The step
+      # does not gate the build because WebKitGTK inside a CI sandbox is not a
+      # supported configuration; its log is uploaded either way.
+      - name: Window check under Xvfb (S-01, informational)
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          export WATCHINK_DATA_DIR="$RUNNER_TEMP/window-data" WATCHINK_CONFIG_DIR="$RUNNER_TEMP/window-cfg"
+          mkdir -p "$WATCHINK_DATA_DIR" "$WATCHINK_CONFIG_DIR"
+          xvfb-run -a dbus-run-session -- "$GUI" desktop > window.log 2>&1 &
+          ok=1
+          for _ in $(seq 1 60); do
+            status="$("$GUI" engine status --json || true)"
+            case "$status" in *'"running":true'*) ok=0; break ;; esac
+            sleep 1
+          done
+          "$GUI" doctor || true
+          "$GUI" engine stop --force || true
+          pkill -f "$GUI desktop" || true
+          sleep 1
+          echo "--- window.log"; cat window.log
+          if [ "$ok" -ne 0 ]; then echo "::warning::the window did not start the engine within 60 s under Xvfb"; fi
+          exit "$ok"
+
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: watchink-linux-amd64
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            dist/watchink-*-linux-amd64
+            dist/SHA256SUMS
+            internal/tools/embedded/bin/linux-amd64/whisper-cli.sha256
+            window.log
+
+  e2e:
+    name: end to end (real tools, fake model)
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: watchink-linux-amd64
+
+      # Only the runtime packages a user is told to install (§16.3), plus the
+      # speech synthesizer for the sample.
+      - name: Install runtime packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-0 libgtk-3-0t64 gstreamer1.0-plugins-good gstreamer1.0-libav \
+            espeak-ng
+
+      # The release artefact itself, not a fresh build: its embedded
+      # whisper-cli and the pinned linux-amd64 downloads are what is tested.
+      - name: End-to-end run with the desktop ELF
+        run: |
+          set -euo pipefail
+          gui="$(ls dist/watchink-[0-9]*-linux-amd64)"
+          chmod +x "$gui"
+          bash scripts/e2e-linux.sh "$gui"

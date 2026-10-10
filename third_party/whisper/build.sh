@@ -9,7 +9,7 @@
 # and a bootstrapped CMake (only when `cmake` is not on PATH) to ./.cache.
 set -euo pipefail
 
-usage() { echo "usage: $0 <os> <arch>   (supported: darwin arm64)" >&2; exit 2; }
+usage() { echo "usage: $0 <os> <arch>   (supported: darwin arm64, linux amd64)" >&2; exit 2; }
 [ $# -eq 2 ] || usage
 TARGET_OS=$1
 TARGET_ARCH=$2
@@ -28,6 +28,7 @@ OUT_DIR="$REPO/internal/tools/embedded/bin/$TARGET_OS-$TARGET_ARCH"
 # is the official Kitware release; the hash comes from cmake-<v>-SHA-256.txt.
 CMAKE_VERSION=4.4.4
 CMAKE_MACOS_SHA256=4b7b73704b1db9b374e5c9ab8e17ac6148b817b6396ee75cd94a852cbac9d305
+CMAKE_LINUX_X86_64_SHA256=e5bb807f7728cb60cd8b27ebc97a2edb469b68655f21e844a600c3575b76f5bb
 
 log() { echo "[whisper-build] $*" >&2; }
 die() { echo "[whisper-build] error: $*" >&2; exit 1; }
@@ -63,6 +64,20 @@ find_cmake() {
         local tgz="$CACHE_DIR/cmake-$CMAKE_VERSION-macos-universal.tar.gz"
         fetch "https://github.com/Kitware/CMake/releases/download/v$CMAKE_VERSION/cmake-$CMAKE_VERSION-macos-universal.tar.gz" \
           "$tgz" "$CMAKE_MACOS_SHA256"
+        log "unpacking CMake $CMAKE_VERSION into .cache"
+        rm -rf "$root"
+        tar -xzf "$tgz" -C "$CACHE_DIR"
+      fi
+      echo "$bin"
+      ;;
+    Linux)
+      [ "$(uname -m)" = "x86_64" ] || die "cmake not found on PATH and no bootstrap is implemented for Linux $(uname -m)"
+      local root="$CACHE_DIR/cmake-$CMAKE_VERSION-linux-x86_64"
+      local bin="$root/bin/cmake"
+      if [ ! -x "$bin" ]; then
+        local tgz="$CACHE_DIR/cmake-$CMAKE_VERSION-linux-x86_64.tar.gz"
+        fetch "https://github.com/Kitware/CMake/releases/download/v$CMAKE_VERSION/cmake-$CMAKE_VERSION-linux-x86_64.tar.gz" \
+          "$tgz" "$CMAKE_LINUX_X86_64_SHA256"
         log "unpacking CMake $CMAKE_VERSION into .cache"
         rm -rf "$root"
         tar -xzf "$tgz" -C "$CACHE_DIR"
@@ -146,9 +161,85 @@ build_darwin_arm64() {
   log "installed $OUT_DIR/whisper-cli ($(wc -c < "$OUT_DIR/whisper-cli" | tr -d ' ') bytes, sha256 $(cat "$OUT_DIR/whisper-cli.sha256"))"
 }
 
+build_linux_amd64() {
+  [ "$(uname -s)" = "Linux" ] || die "linux builds must run on Linux"
+  [ "$(uname -m)" = "x86_64" ] || die "linux amd64 builds must run on an x86_64 host (no cross toolchain is set up)"
+  local tool
+  for tool in cc c++ make readelf strip; do
+    command -v "$tool" >/dev/null 2>&1 || die "$tool not found (Ubuntu: sudo apt-get install build-essential)"
+  done
+  local cmake
+  cmake=$(find_cmake)
+  log "using cmake: $cmake ($("$cmake" --version | head -1))"
+  fetch_source
+
+  # CMake caches absolute paths; a build tree configured from another
+  # checkout location (e.g. after the repo was moved) must be recreated.
+  if [ -f "$BUILD_DIR/CMakeCache.txt" ] && ! grep -qxF "CMAKE_HOME_DIRECTORY:INTERNAL=$SRC_DIR" "$BUILD_DIR/CMakeCache.txt"; then
+    log "build tree was configured for another source path; recreating it"
+    rm -rf "$BUILD_DIR"
+  fi
+
+  # CPU only (docs/v0.md §1: no GPU acceleration on Linux in v0).
+  # - BUILD_SHARED_LIBS=OFF: libwhisper and ggml are linked into the binary.
+  # - CMAKE_EXE_LINKER_FLAGS=-static: the binary also carries glibc and
+  #   libstdc++, so it does not depend on the glibc version of the build host.
+  #   GGML_STATIC=ON alone is not enough: it adds -static only for the targets
+  #   of ggml's own directory, and whisper-cli is defined elsewhere.
+  # - GGML_OPENMP=OFF: no libgomp; ggml uses its own threads.
+  # - GGML_NATIVE=OFF plus the explicit instruction sets: do not tune for the
+  #   build machine. The baseline is x86-64-v3 (AVX2, FMA, F16C, BMI2; Intel
+  #   Haswell 2013 / AMD Excavator 2015 and later); AVX-512 stays off. The
+  #   switches are spelled out because their defaults flip to OFF when
+  #   SOURCE_DATE_EPOCH is set.
+  # - GGML_CCACHE=OFF: the result must not depend on a compiler cache.
+  # - WHISPER_BUILD_IS_DEV=OFF: report the release version, not "<v>-dev".
+  "$cmake" -S "$SRC_DIR" -B "$BUILD_DIR" \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DBUILD_SHARED_LIBS=OFF \
+    -DCMAKE_EXE_LINKER_FLAGS=-static \
+    -DGGML_STATIC=ON \
+    -DGGML_OPENMP=OFF \
+    -DGGML_NATIVE=OFF \
+    -DGGML_SSE42=ON \
+    -DGGML_AVX=ON \
+    -DGGML_AVX2=ON \
+    -DGGML_FMA=ON \
+    -DGGML_F16C=ON \
+    -DGGML_BMI2=ON \
+    -DGGML_AVX512=OFF \
+    -DGGML_CCACHE=OFF \
+    -DWHISPER_BUILD_IS_DEV=OFF \
+    -DWHISPER_BUILD_EXAMPLES=ON \
+    -DWHISPER_BUILD_TESTS=OFF \
+    -DWHISPER_BUILD_SERVER=OFF \
+    -DWHISPER_SDL2=OFF \
+    -DWHISPER_CURL=OFF
+  "$cmake" --build "$BUILD_DIR" --config Release --target whisper-cli -j "$(nproc)"
+
+  local built="$BUILD_DIR/bin/whisper-cli"
+  [ -x "$built" ] || die "build finished but $built is missing"
+
+  # Refuse to ship a binary that needs any shared library: a static
+  # executable has no NEEDED entries (and no dynamic section at all).
+  local needed
+  needed=$(LC_ALL=C readelf -d "$built" 2>/dev/null | grep '(NEEDED)' || true)
+  [ -z "$needed" ] || die "whisper-cli is not statically linked:"$'\n'"$needed"
+  "$built" --help >/dev/null 2>&1 || die "the built whisper-cli does not run (--help failed)"
+
+  mkdir -p "$OUT_DIR"
+  cp "$built" "$OUT_DIR/whisper-cli.tmp"
+  strip --strip-all "$OUT_DIR/whisper-cli.tmp"
+  chmod 755 "$OUT_DIR/whisper-cli.tmp"
+  mv "$OUT_DIR/whisper-cli.tmp" "$OUT_DIR/whisper-cli"
+  sha256_of "$OUT_DIR/whisper-cli" > "$OUT_DIR/whisper-cli.sha256"
+  log "installed $OUT_DIR/whisper-cli ($(wc -c < "$OUT_DIR/whisper-cli" | tr -d ' ') bytes, sha256 $(cat "$OUT_DIR/whisper-cli.sha256"))"
+}
+
 case "$TARGET_OS-$TARGET_ARCH" in
   darwin-arm64) build_darwin_arm64 ;;
-  windows-amd64|linux-amd64|linux-arm64|darwin-amd64)
+  linux-amd64) build_linux_amd64 ;;
+  windows-amd64|linux-arm64|darwin-amd64)
     echo "whisper build for $TARGET_OS/$TARGET_ARCH: not implemented yet" >&2
     exit 1 ;;
   *) usage ;;

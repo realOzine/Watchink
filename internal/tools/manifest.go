@@ -27,7 +27,7 @@ const (
 	ArchiveNone  = "none" // the download is the file itself
 	ArchiveZip   = "zip"
 	ArchiveTarGz = "tar.gz"
-	ArchiveTarXz = "tar.xz" // TODO(linux): not needed on darwin, not implemented
+	ArchiveTarXz = "tar.xz" // LZMA2 only, decoded by xz.go
 )
 
 // Manifest is the pinned list of tools and models (§11.1).

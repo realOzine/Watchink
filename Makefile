@@ -36,6 +36,28 @@ desktop:
 package-macos:
 	bash scripts/build-macos.sh package
 
+# --- Linux amd64 (run on Linux; see scripts/build-linux.sh for the packages) ---
+.PHONY: whisper-linux desktop-linux package-linux lint-linux
+
+## whisper-linux: build the embedded static whisper-cli (CPU) for linux-amd64
+whisper-linux:
+	bash third_party/whisper/build.sh linux amd64
+
+## desktop-linux: dist/watchink-<ver>-linux-amd64 (frontend + whisper-cli + GUI build)
+desktop-linux:
+	bash scripts/build-linux.sh desktop
+
+## package-linux: the GUI ELF, dist/watchink-headless-<ver>-linux-amd64 and SHA256SUMS
+package-linux:
+	bash scripts/build-linux.sh package
+
+## lint-linux: gofmt + go vet on Linux, including the desktop-tagged code
+lint-linux:
+	@out="$$(gofmt -l cmd internal scripts build)"; \
+	if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
+	go vet ./...
+	CGO_ENABLED=1 go vet -tags desktop,webkit2_41 ./...
+
 ## icon: regenerate build/appicon.png and build/darwin/Watchink.icns
 icon:
 	go run scripts/genicon.go build/appicon.png

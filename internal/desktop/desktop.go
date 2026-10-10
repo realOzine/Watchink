@@ -6,7 +6,8 @@
 // engine's HTTP API; this package depends only on internal/app.
 //
 // The package only builds with the `desktop` tag, and a runnable binary also
-// needs Wails' `production` tag and cgo (see scripts/build-macos.sh).
+// needs Wails' `production` tag and cgo (see scripts/build-macos.sh and
+// scripts/build-linux.sh; Linux adds the `webkit2_41` tag).
 package desktop
 
 import (
@@ -20,6 +21,7 @@ import (
 	wailslogger "github.com/wailsapp/wails/v2/pkg/logger"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/linux"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
@@ -40,6 +42,9 @@ const (
 	defaultHeight = 820
 	minWidth      = 960
 	minHeight     = 600
+
+	// linuxProgramName is the desktop file ID of build/linux/watchink.desktop.
+	linuxProgramName = "watchink"
 )
 
 // Options configures Run.
@@ -77,6 +82,9 @@ func Run(opts Options) error {
 	}
 	if opts.Connect == nil {
 		return errors.New("desktop: Options.Connect is required")
+	}
+	if err := preflight(); err != nil {
+		return err
 	}
 	a := newApp(opts)
 	a.pickFile = func(ctx context.Context) (string, error) {
@@ -122,6 +130,18 @@ func Run(opts Options) error {
 				// The video detail page has a fullscreen player button.
 				FullscreenEnabled: mac.Enabled,
 			},
+		},
+		// Each platform ignores the other's options.
+		Linux: &linux.Options{
+			Icon: windowIcon(),
+			// The GLib program name becomes the window's app id / WM_CLASS;
+			// it must match build/linux/watchink.desktop for the window to
+			// be grouped under that launcher entry.
+			ProgramName: linuxProgramName,
+			// Wails' own default when no Linux options are given: WebKitGTK
+			// GPU compositing renders a blank window with some drivers
+			// (wails#2977). Stated here because passing options resets it.
+			WebviewGpuPolicy: linux.WebviewGpuPolicyNever,
 		},
 	})
 }

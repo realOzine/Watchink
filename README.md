@@ -115,3 +115,7 @@ make desktop-windows   # dist/Watchink/{Watchink.exe, watchink.com}
 
 - 前端开发：`cd frontend && corepack pnpm dev`（代理到本机 Engine），或 `corepack pnpm dev:mock`（不需要 Engine）。
 - 代码结构和依赖规则见 `docs/v0.md` §4.3。
+
+## 许可证
+
+[MIT](LICENSE)。运行时下载的第三方工具（FFmpeg、yt-dlp、Deno、whisper.cpp 及模型）各自遵循其上游许可证，本项目不再分发它们。

@@ -55,3 +55,32 @@ lint:
 ## clean: remove build outputs (keeps the embedded whisper-cli and the SPA)
 clean:
 	rm -rf bin dist
+
+# --- Windows amd64 ----------------------------------------------------------
+# The release is built on Windows under Git Bash (.github/workflows/windows.yml).
+# The same targets cross-compile from macOS or Linux, because the Windows GUI
+# build needs no cgo; such a build has no embedded whisper-cli and, without a
+# MinGW windres, no icon or manifest. See docs/spikes/v0-windows.md.
+
+.PHONY: whisper-windows desktop-windows package-windows icon-windows lint-windows
+
+## whisper-windows: build the embedded whisper-cli.exe (Windows host only)
+whisper-windows:
+	bash third_party/whisper/build.sh windows amd64
+
+## desktop-windows: dist/Watchink/{Watchink.exe (GUI), watchink.com (console)}
+desktop-windows:
+	bash scripts/build-windows.sh app
+
+## package-windows: dist/Watchink-<ver>-windows-amd64.zip + SHA256SUMS
+package-windows:
+	bash scripts/build-windows.sh package
+
+## icon-windows: regenerate build/windows/Watchink.ico from build/appicon.png
+icon-windows:
+	go run scripts/make-ico.go build/appicon.png build/windows/Watchink.ico
+
+## lint-windows: go vet of the Windows build, from any host
+lint-windows:
+	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go vet -tags nogui ./...
+	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go vet -tags desktop ./...

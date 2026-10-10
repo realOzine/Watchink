@@ -5,6 +5,10 @@
 #
 #   third_party/whisper/build.sh <os> <arch>      e.g. build.sh darwin arm64
 #
+# Windows (`build.sh windows amd64`) runs under Git Bash and needs the Visual
+# Studio C++ tools, the Windows SDK and CMake; the result is
+# whisper-cli.exe with a static runtime, CPU only.
+#
 # Nothing is installed globally: sources go to ./src, build trees to ./build,
 # and a bootstrapped CMake (only when `cmake` is not on PATH) to ./.cache.
 set -euo pipefail
@@ -146,8 +150,98 @@ build_darwin_arm64() {
   log "installed $OUT_DIR/whisper-cli ($(wc -c < "$OUT_DIR/whisper-cli" | tr -d ' ') bytes, sha256 $(cat "$OUT_DIR/whisper-cli.sha256"))"
 }
 
+# find_mt prints the path of the Windows SDK manifest tool. Git Bash does not
+# have it on PATH unless it was started from a Visual Studio prompt.
+find_mt() {
+  if [ -n "${MT_EXE:-}" ]; then echo "$MT_EXE"; return; fi
+  if command -v mt.exe >/dev/null 2>&1; then command -v mt.exe; return; fi
+  local kits="/c/Program Files (x86)/Windows Kits/10/bin" found
+  found=$(ls -d "$kits"/10.*/x64/mt.exe 2>/dev/null | sort -V | tail -n 1 || true)
+  [ -n "$found" ] || die "mt.exe (Windows SDK) not found; set MT_EXE to its path"
+  echo "$found"
+}
+
+build_windows_amd64() {
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) ;;
+    *) die "windows builds must run on Windows, under Git Bash, with the Visual Studio C++ tools and CMake installed" ;;
+  esac
+  local cmake
+  cmake=$(find_cmake)
+  log "using cmake: $cmake ($("$cmake" --version | head -1))"
+  fetch_source
+
+  # Same staleness rule as on macOS; CMake records the path in Windows form.
+  if [ -f "$BUILD_DIR/CMakeCache.txt" ] && ! grep -qxF "CMAKE_HOME_DIRECTORY:INTERNAL=$(cygpath -m "$SRC_DIR")" "$BUILD_DIR/CMakeCache.txt"; then
+    log "build tree was configured for another source path; recreating it"
+    rm -rf "$BUILD_DIR"
+  fi
+
+  # CPU-only build with MSVC (the default generator is the newest Visual
+  # Studio; -A picks the 64-bit toolset).
+  # - CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded: static C/C++ runtime (/MT), so
+  #   the binary runs on a machine without the Visual C++ redistributable
+  #   (§16.1). whisper.cpp asks for CMake 3.5 behaviour, under which that
+  #   variable is ignored, hence CMAKE_POLICY_DEFAULT_CMP0091=NEW.
+  # - GGML_NATIVE=OFF plus an explicit instruction set: the baseline is a CPU
+  #   with AVX2 / FMA / F16C / BMI2 (Intel Haswell 2013, AMD Excavator 2015 and
+  #   later). AVX-512 stays off; the build machine's CPU does not matter.
+  # - GGML_OPENMP=OFF: no vcomp140.dll dependency; ggml uses its own threads.
+  "$cmake" -S "$SRC_DIR" -B "$BUILD_DIR" -A x64 \
+    -DCMAKE_POLICY_DEFAULT_CMP0091=NEW \
+    -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded \
+    -DBUILD_SHARED_LIBS=OFF \
+    -DGGML_OPENMP=OFF \
+    -DGGML_NATIVE=OFF \
+    -DGGML_SSE42=ON -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_BMI2=ON -DGGML_FMA=ON -DGGML_F16C=ON \
+    -DGGML_AVX512=OFF \
+    -DWHISPER_BUILD_IS_DEV=OFF \
+    -DWHISPER_BUILD_EXAMPLES=ON \
+    -DWHISPER_BUILD_TESTS=OFF \
+    -DWHISPER_BUILD_SERVER=OFF \
+    -DWHISPER_SDL2=OFF \
+    -DWHISPER_CURL=OFF
+  "$cmake" --build "$BUILD_DIR" --config Release --target whisper-cli -j "$(nproc)"
+
+  # Multi-config generators (Visual Studio) add a per-configuration directory.
+  local built="$BUILD_DIR/bin/Release/whisper-cli.exe"
+  [ -f "$built" ] || built="$BUILD_DIR/bin/whisper-cli.exe"
+  [ -f "$built" ] || die "build finished but whisper-cli.exe is missing under $BUILD_DIR/bin"
+
+  # Refuse to ship a binary that needs a runtime DLL the OS does not have.
+  if command -v objdump >/dev/null 2>&1; then
+    local bad
+    bad=$(objdump -p "$built" | awk '/DLL Name:/ {print $3}' | grep -Ei '^(vcruntime|msvcp|vcomp|concrt|ucrtbase|api-ms-win-crt)' || true)
+    [ -z "$bad" ] || die "whisper-cli.exe links the dynamic C/C++ runtime:"$'\n'"$bad"
+  else
+    log "warning: objdump not found, the static-runtime check was skipped"
+  fi
+
+  mkdir -p "$OUT_DIR"
+  cp "$built" "$OUT_DIR/whisper-cli.tmp.exe"
+
+  # whisper-cli takes its arguments as narrow strings in the process code
+  # page, and opens the model through a UTF-8 conversion. The manifest makes
+  # that code page UTF-8 (Windows 10 1903+), so paths with characters outside
+  # the system code page work: a data directory under C:\Users\<non-ASCII
+  # name> is the common case. It replaces the linker's default manifest.
+  local mt
+  mt=$(find_mt)
+  MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' "$mt" -nologo \
+    -manifest "$(cygpath -w "$HERE/whisper-cli.manifest")" \
+    "-outputresource:$(cygpath -w "$OUT_DIR/whisper-cli.tmp.exe");#1"
+
+  # The patched binary must still start (see NOTES.md: --help exits 0).
+  "$OUT_DIR/whisper-cli.tmp.exe" --help >/dev/null 2>&1 || die "whisper-cli.exe does not run after embedding the manifest"
+
+  mv "$OUT_DIR/whisper-cli.tmp.exe" "$OUT_DIR/whisper-cli.exe"
+  sha256_of "$OUT_DIR/whisper-cli.exe" > "$OUT_DIR/whisper-cli.exe.sha256"
+  log "installed $OUT_DIR/whisper-cli.exe ($(wc -c < "$OUT_DIR/whisper-cli.exe" | tr -d ' ') bytes, sha256 $(cat "$OUT_DIR/whisper-cli.exe.sha256"))"
+}
+
 case "$TARGET_OS-$TARGET_ARCH" in
   darwin-arm64) build_darwin_arm64 ;;
+  windows-amd64) build_windows_amd64 ;;
   windows-amd64|linux-amd64|linux-arm64|darwin-amd64)
     echo "whisper build for $TARGET_OS/$TARGET_ARCH: not implemented yet" >&2
     exit 1 ;;

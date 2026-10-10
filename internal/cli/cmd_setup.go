@@ -42,6 +42,15 @@ func keyRequired(baseURL string) bool {
 	return ip == nil || !ip.IsLoopback()
 }
 
+// setupInput is what `setup` is going to apply: the settings patch, the API
+// key (empty = leave as is) and whether to download the missing tools. It
+// starts from the flags and is completed by the interactive questions.
+type setupInput struct {
+	llm, asr map[string]any
+	apiKey   string
+	prepare  bool
+}
+
 func (e *env) cmdSetup() *cobra.Command {
 	var baseURL, model, asrModel string
 	var keyStdin, prepare bool
@@ -55,136 +64,40 @@ func (e *env) cmdSetup() *cobra.Command {
 	}
 	cmd.RunE = e.run(func(c *call) error {
 		flags := cmd.Flags()
-		// questions are only asked on an interactive terminal without
+		in := setupInput{llm: map[string]any{}, asr: map[string]any{}, prepare: prepare}
+		if flags.Changed("llm-base-url") {
+			in.llm["base_url"] = baseURL
+		}
+		if flags.Changed("llm-model") {
+			in.llm["model"] = model
+		}
+		if flags.Changed("asr-model") {
+			in.asr["model"] = asrModel
+		}
+		if keyStdin {
+			key, err := c.pipedAPIKey()
+			if err != nil {
+				return err
+			}
+			in.apiKey = key
+		}
+		// Questions are only asked on an interactive terminal without
 		// --json; stdin is not a prompt source when it carries the API key.
 		interactive := c.isTerminal() && !c.jsonMode && !keyStdin
 
-		apiKey := ""
-		if keyStdin {
-			if c.isTerminal() {
-				return app.E(app.CodeInvalidArgument, "--llm-api-key-stdin 需要通过管道传入 API Key").
-					WithHint("例如：printf %s \"$KEY\" | watchink setup --llm-api-key-stdin")
-			}
-			v, err := c.readSecret("")
-			if err != nil {
-				return err
-			}
-			if v == "" {
-				return app.E(app.CodeInvalidArgument, "没有从 stdin 读到 API Key")
-			}
-			apiKey = v
-		}
-
 		return c.withRemote(func(r app.Remote) error {
-			ctx, cancel := c.reqCtx()
-			current, err := r.GetSettings(ctx)
-			cancel()
-			if err != nil {
+			if interactive {
+				if err := c.askSetup(r, &in); err != nil {
+					return err
+				}
+			}
+			if err := c.saveSetup(r, in); err != nil {
 				return err
 			}
-
-			llm := map[string]any{}
-			asr := map[string]any{}
-			if flags.Changed("llm-base-url") {
-				llm["base_url"] = baseURL
-			}
-			if flags.Changed("llm-model") {
-				llm["model"] = model
-			}
-			if flags.Changed("asr-model") {
-				asr["model"] = asrModel
-			}
-
-			if interactive {
-				in := bufio.NewReader(c.stdin())
-				ask := func(label, cur string) string {
-					if cur != "" {
-						fmt.Fprintf(c.errw, "%s [%s]：", label, cur)
-					} else {
-						fmt.Fprintf(c.errw, "%s：", label)
-					}
-					line, _ := in.ReadString('\n')
-					return strings.TrimSpace(line)
-				}
-				fmt.Fprintln(c.errw, "配置在线模型（OpenAI 兼容接口）。直接回车表示保持当前值或跳过。")
-				if !flags.Changed("llm-base-url") {
-					if v := ask("接口地址 base_url", current.LLM.BaseURL); v != "" {
-						llm["base_url"] = v
-					}
-				}
-				if !flags.Changed("llm-model") {
-					if v := ask("模型名", current.LLM.Model); v != "" {
-						llm["model"] = v
-					}
-				}
-				state := "未配置"
-				if current.LLM.APIKeyConfigured {
-					state = "已配置，回车保持不变"
-				}
-				if c.deps.ReadPassword != nil {
-					fmt.Fprintf(c.errw, "API Key（%s）：", state)
-					v, err := c.deps.ReadPassword()
-					fmt.Fprintln(c.errw)
-					if err != nil {
-						return app.E(app.CodeInternal, "读取输入失败：%v", err)
-					}
-					apiKey = strings.TrimSpace(v)
-				} else {
-					apiKey = ask("API Key（"+state+"；输入内容会显示在屏幕上）", "")
-				}
-				if !prepare {
-					ctx, cancel := c.reqCtx()
-					tools, err := r.GetTools(ctx)
-					cancel()
-					if err != nil {
-						return err
-					}
-					if !tools.Ready {
-						v := ask(fmt.Sprintf("现在下载缺失的工具和模型（约 %s）吗？[Y/n]", humanBytes(tools.MissingDownloadBytes)), "")
-						prepare = v == "" || strings.EqualFold(v, "y") || strings.EqualFold(v, "yes")
-					}
-				}
-			}
-
-			patch := map[string]any{}
-			if len(llm) > 0 {
-				patch["llm"] = llm
-			}
-			if len(asr) > 0 {
-				patch["asr"] = asr
-			}
-			if len(patch) > 0 {
-				ctx, cancel := c.reqCtx()
-				_, err := r.PatchSettings(ctx, patch)
-				cancel()
-				if err != nil {
-					return err
-				}
-				c.logf("已保存配置")
-			}
-			if apiKey != "" {
-				ctx, cancel := c.reqCtx()
-				err := r.SetSecret(ctx, app.SecretLLMAPIKey, apiKey)
-				cancel()
-				if err != nil {
-					return err
-				}
-				c.logf("已保存 API Key")
-			}
-
 			res := setupResult{}
 			var fail *failure
-			if prepare {
-				ctx, cancel := c.reqCtx()
-				job, err := r.PrepareTools(ctx, app.PrepareToolsRequest{Items: []string{}})
-				cancel()
-				if err != nil {
-					return err
-				}
-				c.logf("正在准备工具和模型…")
-				onUpdate := c.progressPrinter()
-				onUpdate(job)
-				job, timedOut, err := c.waitJob(r, job, 0, onUpdate)
+			if in.prepare {
+				job, timedOut, err := c.prepareAndWait(r)
 				if err != nil {
 					return err
 				}
@@ -192,8 +105,9 @@ func (e *env) cmdSetup() *cobra.Command {
 				fail = waitFailure(job, timedOut)
 			}
 
-			ctx, cancel = c.reqCtx()
+			ctx, cancel := c.reqCtx()
 			defer cancel()
+			var err error
 			if res.Settings, err = r.GetSettings(ctx); err != nil {
 				return err
 			}
@@ -220,6 +134,131 @@ func (e *env) cmdSetup() *cobra.Command {
 	f.StringVar(&asrModel, "asr-model", "", "语音模型 ID（留空使用平台默认模型）")
 	f.BoolVar(&prepare, "prepare", false, "下载缺失的工具和模型并等待完成")
 	return cmd
+}
+
+// pipedAPIKey reads the API key from stdin for --llm-api-key-stdin.
+func (c *call) pipedAPIKey() (string, error) {
+	if c.isTerminal() {
+		return "", app.E(app.CodeInvalidArgument, "--llm-api-key-stdin 需要通过管道传入 API Key").
+			WithHint("例如：printf %s \"$KEY\" | watchink setup --llm-api-key-stdin")
+	}
+	v, err := c.readSecret("")
+	if err != nil {
+		return "", err
+	}
+	if v == "" {
+		return "", app.E(app.CodeInvalidArgument, "没有从 stdin 读到 API Key")
+	}
+	return v, nil
+}
+
+// askSetup asks on the terminal for whatever the flags did not give: the
+// model address and name, the API key, and whether to download the missing
+// tools. An empty answer keeps the current value.
+func (c *call) askSetup(r app.Remote, in *setupInput) error {
+	ctx, cancel := c.reqCtx()
+	current, err := r.GetSettings(ctx)
+	cancel()
+	if err != nil {
+		return err
+	}
+	stdin := bufio.NewReader(c.stdin())
+	ask := func(label, cur string) string {
+		if cur != "" {
+			fmt.Fprintf(c.errw, "%s [%s]：", label, cur)
+		} else {
+			fmt.Fprintf(c.errw, "%s：", label)
+		}
+		line, _ := stdin.ReadString('\n')
+		return strings.TrimSpace(line)
+	}
+
+	fmt.Fprintln(c.errw, "配置在线模型（OpenAI 兼容接口）。直接回车表示保持当前值或跳过。")
+	if _, given := in.llm["base_url"]; !given {
+		if v := ask("接口地址 base_url", current.LLM.BaseURL); v != "" {
+			in.llm["base_url"] = v
+		}
+	}
+	if _, given := in.llm["model"]; !given {
+		if v := ask("模型名", current.LLM.Model); v != "" {
+			in.llm["model"] = v
+		}
+	}
+	state := "未配置"
+	if current.LLM.APIKeyConfigured {
+		state = "已配置，回车保持不变"
+	}
+	if c.deps.ReadPassword != nil {
+		fmt.Fprintf(c.errw, "API Key（%s）：", state)
+		v, err := c.deps.ReadPassword()
+		fmt.Fprintln(c.errw)
+		if err != nil {
+			return app.E(app.CodeInternal, "读取输入失败：%v", err)
+		}
+		in.apiKey = strings.TrimSpace(v)
+	} else {
+		in.apiKey = ask("API Key（"+state+"；输入内容会显示在屏幕上）", "")
+	}
+
+	if in.prepare {
+		return nil
+	}
+	ctx, cancel = c.reqCtx()
+	tools, err := r.GetTools(ctx)
+	cancel()
+	if err != nil {
+		return err
+	}
+	if !tools.Ready {
+		v := ask(fmt.Sprintf("现在下载缺失的工具和模型（约 %s）吗？[Y/n]", humanBytes(tools.MissingDownloadBytes)), "")
+		in.prepare = v == "" || strings.EqualFold(v, "y") || strings.EqualFold(v, "yes")
+	}
+	return nil
+}
+
+// saveSetup writes the settings patch and the API key, when there are any.
+func (c *call) saveSetup(r app.Remote, in setupInput) error {
+	patch := map[string]any{}
+	if len(in.llm) > 0 {
+		patch["llm"] = in.llm
+	}
+	if len(in.asr) > 0 {
+		patch["asr"] = in.asr
+	}
+	if len(patch) > 0 {
+		ctx, cancel := c.reqCtx()
+		_, err := r.PatchSettings(ctx, patch)
+		cancel()
+		if err != nil {
+			return err
+		}
+		c.logf("已保存配置")
+	}
+	if in.apiKey != "" {
+		ctx, cancel := c.reqCtx()
+		err := r.SetSecret(ctx, app.SecretLLMAPIKey, in.apiKey)
+		cancel()
+		if err != nil {
+			return err
+		}
+		c.logf("已保存 API Key")
+	}
+	return nil
+}
+
+// prepareAndWait starts the download of the missing tools and models and
+// follows the job to its end.
+func (c *call) prepareAndWait(r app.Remote) (job *app.Job, timedOut bool, err error) {
+	ctx, cancel := c.reqCtx()
+	job, err = r.PrepareTools(ctx, app.PrepareToolsRequest{Items: []string{}})
+	cancel()
+	if err != nil {
+		return nil, false, err
+	}
+	c.logf("正在准备工具和模型…")
+	onUpdate := c.progressPrinter()
+	onUpdate(job)
+	return c.waitJob(r, job, 0, onUpdate)
 }
 
 func printSetup(w io.Writer, res *setupResult) {

@@ -86,15 +86,12 @@ func (s *Service) GetNote(ctx context.Context, req app.GetNoteRequest) (*app.Not
 	if err != nil {
 		return nil, err
 	}
-	cites, err := s.citations.get(n.ID, func() ([]app.Citation, error) {
-		cites, err := s.st.ListCitations(ctx, n.ID)
-		if cites == nil {
-			cites = []app.Citation{}
-		}
-		return cites, err
-	})
+	cites, err := s.st.ListCitations(ctx, n.ID)
 	if err != nil {
 		return nil, err
+	}
+	if cites == nil {
+		cites = []app.Citation{}
 	}
 	out := &app.Note{
 		NoteID: n.ID, VideoID: n.VideoID, TranscriptID: n.TranscriptID, Version: n.Version, Title: n.Title, Format: format,
@@ -107,23 +104,9 @@ func (s *Service) GetNote(ctx context.Context, req app.GetNoteRequest) (*app.Not
 
 // transcriptSegments returns the requested part of a transcript version in
 // idx order: the listed segment IDs (IDs of other versions are not part of
-// the answer), the segments overlapping [start_ms, end_ms), or everything.
-//
-// A transcript version never changes, so a full read is cached and later
-// requests for the same transcript are answered from memory. A partial read
-// of a transcript that is not cached goes to the indexed query instead of
-// loading every row: paging through a video nobody has opened stays cheap.
+// the answer), or the segments overlapping [start_ms, end_ms); both bounds
+// are optional.
 func (s *Service) transcriptSegments(ctx context.Context, transcriptID string, req app.GetTranscriptRequest) ([]app.Segment, error) {
-	partial := len(req.SegmentIDs) > 0 || req.StartMs != nil || req.EndMs != nil
-	if all, ok := s.segments.peek(transcriptID); ok {
-		return selectSegments(all, req), nil
-	}
-	if !partial {
-		return s.segments.get(transcriptID, func() ([]app.Segment, error) {
-			rows, err := s.st.Segments(ctx, transcriptID)
-			return segmentDTOs(rows, ""), err
-		})
-	}
 	if len(req.SegmentIDs) > 0 {
 		rows, err := s.st.SegmentsByIDs(ctx, req.SegmentIDs)
 		return segmentDTOs(rows, transcriptID), err
@@ -139,37 +122,6 @@ func segmentDTOs(rows []store.Segment, onlyTranscript string) []app.Segment {
 		if onlyTranscript == "" || r.TranscriptID == onlyTranscript {
 			out = append(out, r.DTO())
 		}
-	}
-	return out
-}
-
-// selectSegments is the in-memory equivalent of the two partial queries.
-func selectSegments(all []app.Segment, req app.GetTranscriptRequest) []app.Segment {
-	if len(req.SegmentIDs) > 0 {
-		want := make(map[string]bool, len(req.SegmentIDs))
-		for _, id := range req.SegmentIDs {
-			want[id] = true
-		}
-		var out []app.Segment
-		for _, seg := range all {
-			if want[seg.SegmentID] {
-				out = append(out, seg)
-			}
-		}
-		return out
-	}
-	if req.StartMs == nil && req.EndMs == nil {
-		return all
-	}
-	var out []app.Segment
-	for _, seg := range all {
-		if req.StartMs != nil && seg.EndMs <= *req.StartMs {
-			continue
-		}
-		if req.EndMs != nil && seg.StartMs >= *req.EndMs {
-			continue
-		}
-		out = append(out, seg)
 	}
 	return out
 }

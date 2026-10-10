@@ -7,11 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -277,41 +275,6 @@ func TestKillJobAndKillAll(t *testing.T) {
 		t.Fatal("job_b did not stop after KillAll")
 	}
 	waitGone(t, "job_b child", func() bool { return pidAlive(pidB) }, time.Second)
-}
-
-func TestKillIfMatches(t *testing.T) {
-	start := func() *exec.Cmd {
-		cmd := exec.Command("/bin/sleep", "300")
-		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-		if err := cmd.Start(); err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
-		return cmd
-	}
-
-	c := start()
-	if killed, err := KillIfMatches(c.Process.Pid, "/bin/sh"); killed || err != nil {
-		t.Fatalf("wrong exe: killed=%v err=%v", killed, err)
-	}
-	if !pidAlive(c.Process.Pid) {
-		t.Fatal("process killed despite executable mismatch")
-	}
-	if killed, err := KillIfMatches(c.Process.Pid, "/bin/sleep"); !killed || err != nil {
-		t.Fatalf("matching exe: killed=%v err=%v", killed, err)
-	}
-	_ = c.Wait()
-	if c.ProcessState.Sys().(syscall.WaitStatus).Signal() != syscall.SIGKILL {
-		t.Errorf("process state = %v, want killed", c.ProcessState)
-	}
-
-	// Gone pid, own pid and pid 1 are never touched.
-	for _, pid := range []int{c.Process.Pid, os.Getpid(), 1, 0, -5} {
-		self, _ := os.Executable()
-		if killed, err := KillIfMatches(pid, self); killed || err != nil {
-			t.Errorf("KillIfMatches(%d) = %v, %v", pid, killed, err)
-		}
-	}
 }
 
 func TestHelperSleep(t *testing.T) {

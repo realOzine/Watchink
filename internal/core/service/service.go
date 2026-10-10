@@ -48,11 +48,6 @@ type Service struct {
 
 	mediaKey []byte
 
-	// Immutable rows kept in memory; see cache.go. Slices handed out by
-	// these caches are shared and must not be modified.
-	citations *lru[[]app.Citation] // by note ID
-	segments  *lru[[]app.Segment]  // by transcript ID, in idx order
-
 	mu       sync.RWMutex
 	settings app.Settings
 	baseURL  string
@@ -78,8 +73,7 @@ func Open(ctx context.Context, opts Options) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Service{dataDir: opts.DataDir, log: log, addSecret: opts.AddSecret, st: st, bus: events.New(0), settings: cfg, mediaKey: make([]byte, 32),
-		citations: newLRU[[]app.Citation](64), segments: newLRU[[]app.Segment](16)}
+	s := &Service{dataDir: opts.DataDir, log: log, addSecret: opts.AddSecret, st: st, bus: events.New(0), settings: cfg, mediaKey: make([]byte, 32)}
 	if _, err := rand.Read(s.mediaKey); err != nil {
 		st.Close()
 		return nil, err
@@ -88,12 +82,6 @@ func Open(ctx context.Context, opts Options) (*Service, error) {
 
 	s.runner = procx.New(procx.Options{
 		GuardExe: opts.GuardExe,
-		// child_processes lets the next engine run find children that
-		// outlived a crash (step 3).
-		OnStart: func(pid int, exe, jobID, stage string) {
-			_ = st.AddChildProcess(context.Background(), store.ChildProcess{PID: pid, JobID: jobID, Stage: stage, Exe: exe, StartedAt: app.Now()})
-		},
-		OnExit: func(pid int) { _ = st.RemoveChildProcess(context.Background(), pid) },
 	})
 	s.tools, err = tools.New(tools.Options{
 		DataDir: opts.DataDir, Exec: s.exec, Mirrors: cfg.Download.Mirrors, Proxy: cfg.Network.Proxy, Logger: log,
@@ -120,8 +108,9 @@ func Open(ctx context.Context, opts Options) (*Service, error) {
 	return s, nil
 }
 
-// recover runs at engine start: fix states left by a dead engine, sweep orphan
-// files and kill children that survived it.
+// recover runs at engine start: fix the job states a dead engine left behind
+// and sweep orphan files. Child processes need no clean-up here: each
+// platform ends them together with the engine (see internal/infra/procx).
 func (s *Service) recover(ctx context.Context, autoResume bool) error {
 	res, err := s.st.Recover(ctx, autoResume)
 	if err != nil {
@@ -133,19 +122,7 @@ func (s *Service) recover(ctx context.Context, autoResume bool) error {
 	if _, err := s.st.SweepOrphans(ctx); err != nil {
 		s.log.Warn("sweep orphans failed", "error", err)
 	}
-	children, err := s.st.ListChildProcesses(ctx)
-	if err != nil {
-		return err
-	}
-	for _, c := range children {
-		// Only a process whose pid AND executable both match is ours.
-		if killed, err := procx.KillIfMatches(c.PID, c.Exe); err != nil {
-			s.log.Warn("kill leftover child failed", "pid", c.PID, "error", err)
-		} else if killed {
-			s.log.Info("killed leftover child", "pid", c.PID, "exe", c.Exe)
-		}
-	}
-	return s.st.ClearChildProcesses(ctx)
+	return nil
 }
 
 // exec runs a tool for the tool manager's smoke tests through procx, the

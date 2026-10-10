@@ -43,41 +43,6 @@ func setProcessGroup(cmd *exec.Cmd) {
 // was unlinked or replaced while the process runs (a tool update does that).
 const deletedSuffix = " (deleted)"
 
-// processExe returns the executable of pid as /proc/<pid>/exe names it. ok is
-// false when the process does not exist, is a zombie, or belongs to another
-// user.
-func processExe(pid int) (link, exe string, ok bool) {
-	link = "/proc/" + strconv.Itoa(pid) + "/exe"
-	target, err := os.Readlink(link)
-	if err != nil || target == "" {
-		return "", "", false
-	}
-	return link, strings.TrimSuffix(target, deletedSuffix), true
-}
-
-// KillIfMatches kills a child left over from a previous engine, but only when
-// the process with that pid still runs the recorded executable (step 3):
-// a recycled pid must never be killed. It returns true when a kill was sent.
-//
-// Children are recorded with the tool's own path on Linux (there is no
-// guard), so a process running the current executable is never a leftover
-// child: the engine, CLI and desktop processes are never hit.
-func KillIfMatches(pid int, exe string) (bool, error) {
-	if pid <= 1 || pid == os.Getpid() || pid == os.Getppid() {
-		return false, nil
-	}
-	link, actual, ok := processExe(pid)
-	// The link itself is compared too: stat follows it to the running inode
-	// even when the path it prints no longer resolves.
-	if !ok || !(samePath(actual, exe) || samePath(link, exe)) {
-		return false, nil
-	}
-	if self, err := os.Executable(); err == nil && (samePath(actual, self) || samePath(link, self)) {
-		return false, nil
-	}
-	return killTree(pid)
-}
-
 // GuardMain is the `watchink _guard` subcommand, which only macOS uses: on
 // Linux the kernel ends the children of a dead engine through Pdeathsig,
 // so the Runner never starts a guard and this only reports misuse.

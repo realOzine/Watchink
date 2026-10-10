@@ -3,6 +3,7 @@ package tools
 import (
 	"archive/tar"
 	"archive/zip"
+	"bufio"
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
@@ -13,6 +14,8 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/ulikunitz/xz"
 )
 
 // extracted describes one file written by extractFiles.
@@ -99,7 +102,11 @@ func extractFiles(payload, kind string, files map[string]string, dir string) (ma
 			return nil, err
 		}
 		defer f.Close()
-		if err := untar(newXZReader(f), kind, want, out, put); err != nil {
+		xr, err := xz.NewReader(bufio.NewReader(f))
+		if err != nil {
+			return nil, err
+		}
+		if err := untar(xr, kind, want, out, put); err != nil {
 			return nil, err
 		}
 	default:

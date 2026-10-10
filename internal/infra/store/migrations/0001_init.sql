@@ -141,6 +141,9 @@ CREATE TABLE exports (
   created_at TEXT NOT NULL
 );
 
+-- No longer used: child processes end together with the engine, so nothing
+-- is recorded about them. The table stays so that the schema version does
+-- not change.
 CREATE TABLE child_processes (
   pid INTEGER NOT NULL,
   job_id TEXT,

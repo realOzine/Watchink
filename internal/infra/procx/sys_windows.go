@@ -223,46 +223,6 @@ func samePath(a, b string) bool {
 	return errA == nil && errB == nil && os.SameFile(sa, sb)
 }
 
-// KillIfMatches kills a child left over from a previous engine, but only when
-// the process with that pid still runs the recorded executable (step 3):
-// a recycled pid must never be killed. It returns true when a kill was sent.
-//
-// KILL_ON_JOB_CLOSE normally leaves nothing to find here. A process running
-// the current executable is never killed: there is no guard on Windows, so it
-// can only be an engine, a CLI or the desktop window.
-func KillIfMatches(pid int, exe string) (bool, error) {
-	// 0 is the idle process and 4 the System process.
-	if pid <= 4 || pid == os.Getpid() || pid == os.Getppid() {
-		return false, nil
-	}
-	const access = windows.PROCESS_QUERY_LIMITED_INFORMATION | windows.PROCESS_TERMINATE | windows.SYNCHRONIZE
-	process, err := windows.OpenProcess(access, false, uint32(pid))
-	if err != nil {
-		// No such process, or one we may not touch: not ours either way.
-		return false, nil
-	}
-	defer windows.CloseHandle(process)
-	// A process object outlives its process while handles to it are open.
-	if ev, err := windows.WaitForSingleObject(process, 0); err != nil || ev != uint32(windows.WAIT_TIMEOUT) {
-		return false, nil
-	}
-	actual, ok := processImage(process)
-	if !ok || !samePath(actual, exe) {
-		return false, nil
-	}
-	if self, err := os.Executable(); err == nil && samePath(actual, self) {
-		return false, nil
-	}
-	if err := windows.TerminateProcess(process, killExitCode); err != nil {
-		if errors.Is(err, windows.ERROR_ACCESS_DENIED) {
-			// It exited between the check and the call.
-			return false, nil
-		}
-		return false, err
-	}
-	return true, nil
-}
-
 // GuardMain is the `_guard` subcommand, which only exists on macOS. Windows
 // does not wrap children: their Job Object dies with the engine.
 func GuardMain(args []string) int {

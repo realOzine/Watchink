@@ -159,7 +159,6 @@ service/             用例层：app.Local 的实现，也是 Engine 内部的�
 ├─ jobs_videos.go      任务和视频的查询、取消、重试
 ├─ read.go             读笔记、读字幕、播放地址、导出
 ├─ settings.go         读写配置和密钥、测试在线模型、工具状态
-└─ cache.go            不可变数据（引用表、字幕）的小型 LRU 缓存
 
 jobs/                通用调度器：不认识“视频”，只认识任务、阶段、资源
 ├─ jobs.go             类型：StageDef、JobParams；建任务；组装任务 DTO 和总进度
@@ -224,8 +223,7 @@ tools/               外部工具和模型的准备
 ├─ manager.go          状态查询、Ensure（按需安装）、路径解析
 ├─ install.go          安装流程：取得 → 校验 → 解压 → 冒烟测试 → 原子移动 → 登记
 ├─ download.go         下载：续传、镜像、代理、校验
-├─ extract.go          解压 zip / tar.gz / tar.xz
-├─ xz.go               纯 Go 的 xz 解码器（Linux 的 ffmpeg 是 tar.xz）
+├─ extract.go          解压 zip / tar.gz / tar.xz（xz 用第三方库 ulikunitz/xz）
 ├─ installed.go        installed.json：已安装的版本记录
 ├─ update.go           更新 yt-dlp 到上游最新版，可回退
 ├─ embedded.go         内嵌的 whisper-cli（embedded/bin/<平台>/，构建时放入）
@@ -245,7 +243,7 @@ store/               数据存储：唯一接触 SQLite 的包
 ├─ artifacts.go        artifacts 表：产物登记，指纹复用的另一半
 ├─ transcripts.go      transcripts、segments 表
 ├─ notes.go            notes、citations 表
-├─ misc.go             uploads、exports、child_processes 表
+├─ misc.go             uploads、exports 表
 ├─ files.go            数据目录内的文件：原子写入、校验、清理孤立文件
 └─ diskfull_*.go       各平台的“磁盘已满”错误码
 
@@ -488,8 +486,6 @@ app/          契约：不依赖任何内部包，以上每一层都可以依赖
 
 读取笔记是另一条更短的路径：`service.GetNote`（`service/read.go`）从 `store` 取笔记版本、读产物文件、附上引用表和 coverage。
 
-读取路径上有一处缓存（`service/cache.go`）：字幕版本和笔记版本一经生成就不可变，所以引用表和完整字幕各有一个小的 LRU，不需要任何失效逻辑。只读一部分字幕（时间窗口或指定片段）而该字幕不在缓存里时，仍走数据库的索引查询，不会为此加载全部片段。
-
 ## 6. 调度器 `jobs`
 
 调度器不认识“视频”，只认识任务、阶段、资源和产物指纹。
@@ -579,7 +575,7 @@ ensure_tools ─▶ acquire ─▶ probe ─┬▶ extract_audio ─▶ transcri
 | `artifacts.go` | `artifacts` |
 | `transcripts.go` | `transcripts`、`segments` |
 | `notes.go` | `notes`、`citations` |
-| `misc.go` | `uploads`、`exports`、`child_processes` |
+| `misc.go` | `uploads`、`exports` |
 
 数据目录 `<data>`（macOS 默认 `~/Library/Application Support/Watchink/Data`）：
 
@@ -607,7 +603,7 @@ exports/  uploads/  tools/  models/
 
 `engine` 不认识业务：它只通过 `Built` 结构拿到一个 `app.Local` 和几个回调。
 
-**`service.Open`**（`service/service.go`）是 Engine 内部真正的装配点：创建 store、事件总线、`procx.Runner`、`tools.Manager`、调度器，把 `pipeline` 注册进调度器，然后执行重启恢复（修正上次留下的状态、清理孤立文件、核对并终止残留子进程）。
+**`service.Open`**（`service/service.go`）是 Engine 内部真正的装配点：创建 store、事件总线、`procx.Runner`、`tools.Manager`、调度器，把 `pipeline` 注册进调度器，然后执行重启恢复（修正上次留下的状态、清理孤立文件）。残留子进程不需要在这里处理：三个平台各有机制让子进程随 Engine 一起结束。
 
 **`api`**：
 
@@ -641,7 +637,7 @@ exports/  uploads/  tools/  models/
 | `media` | `Probe`（ffprobe）、`ExtractAudio` / `PlanPlayback` / `BuildPlayback`（ffmpeg）、`Download`（yt-dlp，含错误分类）、`NormalizeURL`（链接规范化与主机名白名单）、`SampleHash`（抽样哈希去重） |
 | `asr` | `WhisperCpp.DetectLanguage` / `Transcribe` 调用 whisper-cli 并解析它的 JSON；`PostProcess` 去空片段、折叠连续重复的幻觉片段、保证时间单调 |
 
-工具来源：whisper-cli 由 `third_party/whisper/build.sh` 构建（macOS 用 Metal，Linux 和 Windows 为 CPU 版）；ffmpeg / ffprobe、yt-dlp 首次需要时下载；deno 只在第一次导入 YouTube 链接时下载；whisper 模型来自 Hugging Face 的固定 revision，可走镜像或本地导入。清单包含 `darwin-arm64`、`linux-amd64`、`windows-amd64` 三个平台的条目。Linux 的 ffmpeg 是 `tar.xz` 包，由 `tools/xz.go` 里自带的纯 Go 解码器解压（依赖清单不允许引入新的第三方库）。
+工具来源：whisper-cli 由 `third_party/whisper/build.sh` 构建（macOS 用 Metal，Linux 和 Windows 为 CPU 版）；ffmpeg / ffprobe、yt-dlp 首次需要时下载；deno 只在第一次导入 YouTube 链接时下载；whisper 模型来自 Hugging Face 的固定 revision，可走镜像或本地导入。清单包含 `darwin-arm64`、`linux-amd64`、`windows-amd64` 三个平台的条目。Linux 的 ffmpeg 是 `tar.xz` 包，用第三方库 `ulikunitz/xz` 解压。
 
 ## 13. 前端
 
@@ -692,7 +688,7 @@ go run ./internal/bench/cmd/loadtest                    # 并发 HTTP 压测
 | `cli`、`mcpserver` | 假的 `app.Service` |
 | 前端 | vitest 单元测试；Playwright 跑在模拟服务上 |
 | `pipeline` | **没有 Go 测试**。它依赖真实的工具管理器和子进程，目前由 `scripts/e2e.sh` 覆盖：导入、重复导入、重新生成笔记三条路径，并检查各阶段的复用情况 |
-| `service` | 并发导入（同一文件、不同文件）、缓存、字幕片段选择；其余用例由端到端脚本和压测覆盖 |
+| `service` | 并发导入（同一文件、不同文件）；其余用例由端到端脚本和压测覆盖 |
 
 有测试的有测试的各包语句覆盖率大多在 80%–97% 之间；`pipeline` 为 0%。
 
@@ -732,5 +728,5 @@ go run ./internal/bench/cmd/loadtest                    # 并发 HTTP 压测
 | 英文转写 | 加了固定提示词，否则输出无大小写和标点 |
 | 真实在线模型 | 结构化输出支持矩阵（S-10）和笔记质量未用真实服务验证，全流程是用假服务跑通的 |
 | 桌面窗口 | 只做过程序化启动检查，没有系统的人工操作验证 |
-| 自动化测试 | `pipeline` 没有 Go 测试，`service` 只覆盖了并发导入、缓存和字幕选择；规格中的故障注入构建和依赖规则检查没有落地；三个平台各有一个 CI 工作流（`.github/workflows/`），均已通过 |
+| 自动化测试 | `pipeline` 没有 Go 测试，`service` 只覆盖了并发导入；规格中的故障注入构建和依赖规则检查没有落地；三个平台各有一个 CI 工作流（`.github/workflows/`），均已通过 |
 | 引用粒度 | 引用只能定位到片段起点，单个片段可长达约 28 秒 |

@@ -576,7 +576,7 @@ func TestSweepOrphans(t *testing.T) {
 	}
 }
 
-func TestUploadsExportsChildProcesses(t *testing.T) {
+func TestUploadsAndExports(t *testing.T) {
 	ctx := context.Background()
 	s := openTest(t)
 	u := &Upload{Filename: "a.mp4", SizeBytes: 9, SampleHash: "h", Path: "uploads/x.part", ExpiresAt: app.Now()}
@@ -614,23 +614,5 @@ func TestUploadsExportsChildProcesses(t *testing.T) {
 	}
 	if _, err := s.GetExport(ctx, "exp_missing"); !app.IsCode(err, app.CodeNotFound) {
 		t.Fatal(err)
-	}
-
-	for _, p := range []ChildProcess{{PID: 10, JobID: "job_1", Stage: "transcribe", Exe: "/w"}, {PID: 11, Exe: "/f"}} {
-		if err := s.AddChildProcess(ctx, p); err != nil {
-			t.Fatal(err)
-		}
-	}
-	ps, _ := s.ListChildProcesses(ctx)
-	if len(ps) != 2 || ps[0].PID != 10 || ps[0].Stage != "transcribe" || ps[1].JobID != "" || ps[0].StartedAt == "" {
-		t.Fatalf("ListChildProcesses = %+v", ps)
-	}
-	s.RemoveChildProcess(ctx, 10)
-	if ps, _ = s.ListChildProcesses(ctx); len(ps) != 1 || ps[0].PID != 11 {
-		t.Fatalf("after remove: %+v", ps)
-	}
-	s.ClearChildProcesses(ctx)
-	if ps, _ = s.ListChildProcesses(ctx); len(ps) != 0 {
-		t.Fatalf("after clear: %+v", ps)
 	}
 }

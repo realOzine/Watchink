@@ -50,8 +50,7 @@ type Options struct {
 	GuardExe string
 	// OnStart is called after a child has started. pid is the process-group
 	// leader started by the Runner and exe is that process's executable: the
-	// tool itself, or GuardExe when a guard is used. The pair is exactly what
-	// KillIfMatches needs at restart recovery (step 3).
+	// tool itself, or GuardExe when a guard is used.
 	OnStart func(pid int, exe, jobID, stage string)
 	// OnExit is called once the child has been reaped and its group is gone.
 	OnExit func(pid int)

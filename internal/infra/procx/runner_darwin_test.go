@@ -101,33 +101,3 @@ func TestGuardKillsGroupWhenParentDies(t *testing.T) {
 	// gone long before the 3 s SIGKILL escalation.
 	waitGone(t, fmt.Sprintf("guard group %d", guardPid), func() bool { return groupAlive(guardPid) }, 3*time.Second)
 }
-
-// A process running the current executable is only killed when it is a guard.
-func TestKillIfMatchesOwnExecutableNeedsGuard(t *testing.T) {
-	self, _ := os.Executable()
-
-	// Not a guard: the test binary sleeping inside a test.
-	plain := exec.Command(self, "-test.run", "^TestHelperSleep$")
-	plain.Env = append(os.Environ(), helperEnv+"=sleep")
-	if err := plain.Start(); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = plain.Process.Kill(); _ = plain.Wait() })
-
-	guard := exec.Command(self, GuardSubcommand, "--", "/bin/sleep", "300")
-	guard.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	if err := guard.Start(); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = unix.Kill(-guard.Process.Pid, unix.SIGKILL); _ = guard.Wait() })
-	time.Sleep(300 * time.Millisecond)
-
-	if killed, err := KillIfMatches(plain.Process.Pid, self); killed || err != nil {
-		t.Errorf("non-guard process: killed=%v err=%v", killed, err)
-	}
-	if killed, err := KillIfMatches(guard.Process.Pid, self); !killed || err != nil {
-		t.Errorf("guard process: killed=%v err=%v", killed, err)
-	}
-	_ = guard.Wait() // reap it: a zombie leader still counts as a group member
-	waitGone(t, "guard group", func() bool { return groupAlive(guard.Process.Pid) }, 2*time.Second)
-}

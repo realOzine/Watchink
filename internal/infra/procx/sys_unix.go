@@ -43,43 +43,6 @@ func groupAlive(pgid int) bool {
 	return err == nil || errors.Is(err, unix.EPERM)
 }
 
-func samePath(a, b string) bool {
-	if a == "" || b == "" {
-		return false
-	}
-	if ra, err := filepath.EvalSymlinks(a); err == nil {
-		a = ra
-	}
-	if rb, err := filepath.EvalSymlinks(b); err == nil {
-		b = rb
-	}
-	if filepath.Clean(a) == filepath.Clean(b) {
-		return true
-	}
-	sa, errA := os.Stat(a)
-	sb, errB := os.Stat(b)
-	return errA == nil && errB == nil && os.SameFile(sa, sb)
-}
-
-// killTree sends SIGKILL to pid, and to its whole process group when pid
-// leads one (children are started as group leaders). It returns true when a
-// kill was sent.
-func killTree(pid int) (bool, error) {
-	if pgid, err := unix.Getpgid(pid); err == nil && pgid == pid {
-		if err := unix.Kill(-pid, unix.SIGKILL); err != nil && !errors.Is(err, unix.ESRCH) {
-			return false, err
-		}
-		return true, nil
-	}
-	if err := unix.Kill(pid, unix.SIGKILL); err != nil {
-		if errors.Is(err, unix.ESRCH) {
-			return false, nil
-		}
-		return false, err
-	}
-	return true, nil
-}
-
 // SpawnDetached starts a fully detached background process: new session, no
 // controlling terminal, stdio on /dev/null. It is used to launch
 // `watchink engine run` from a client. A nil env inherits the

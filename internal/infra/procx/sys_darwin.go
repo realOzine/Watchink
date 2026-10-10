@@ -4,7 +4,6 @@ package procx
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 	"os"
 	"os/exec"
@@ -22,60 +21,6 @@ const guardPollInterval = 250 * time.Millisecond
 // signal to -pid reaches the tool and everything it spawned.
 func setProcessGroup(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-}
-
-// processInfo returns the executable path and argv of pid, read from the
-// kern.procargs2 sysctl (no subprocess). ok is false when the process does
-// not exist or belongs to another user.
-func processInfo(pid int) (exe string, argv []string, ok bool) {
-	raw, err := unix.SysctlRaw("kern.procargs2", pid)
-	if err != nil || len(raw) < 4 {
-		return "", nil, false
-	}
-	// Layout: int32 argc, exec path, NUL padding, argv[0..argc), environment.
-	argc := int(binary.LittleEndian.Uint32(raw[:4]))
-	rest := raw[4:]
-	end := bytes.IndexByte(rest, 0)
-	if end <= 0 {
-		return "", nil, false
-	}
-	exe = string(rest[:end])
-	rest = bytes.TrimLeft(rest[end:], "\x00")
-	for i := 0; i < argc && len(rest) > 0; i++ {
-		end = bytes.IndexByte(rest, 0)
-		if end < 0 {
-			end = len(rest)
-		}
-		argv = append(argv, string(rest[:end]))
-		if end == len(rest) {
-			break
-		}
-		rest = rest[end+1:]
-	}
-	return exe, argv, true
-}
-
-// KillIfMatches kills a child left over from a previous engine, but only when
-// the process with that pid still runs the recorded executable (step 3):
-// a recycled pid must never be killed. It returns true when a kill was sent.
-//
-// Because guarded children are recorded with the watchink executable
-// itself, a process running the current executable is only killed when it is
-// a `_guard` invocation; the engine, CLI and desktop processes are never hit.
-func KillIfMatches(pid int, exe string) (bool, error) {
-	if pid <= 1 || pid == os.Getpid() || pid == os.Getppid() {
-		return false, nil
-	}
-	actual, argv, ok := processInfo(pid)
-	if !ok || !samePath(actual, exe) {
-		return false, nil
-	}
-	if self, err := os.Executable(); err == nil && samePath(actual, self) {
-		if len(argv) < 2 || argv[1] != GuardSubcommand {
-			return false, nil
-		}
-	}
-	return killTree(pid)
 }
 
 // GuardMain implements the hidden `watchink _guard [--] <path> <args...>`

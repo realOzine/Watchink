@@ -21,9 +21,6 @@ func killGroup(pgid int) error { return errUnsupported }
 
 func groupAlive(pgid int) bool { return false }
 
-// KillIfMatches is not implemented on this platform.
-func KillIfMatches(pid int, exe string) (bool, error) { return false, errUnsupported }
-
 // GuardMain is only needed on macOS; other platforms rely on Pdeathsig or a
 // Job Object.
 func GuardMain(args []string) int {

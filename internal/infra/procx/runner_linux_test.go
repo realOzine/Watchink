@@ -5,10 +5,8 @@ package procx
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -74,83 +72,6 @@ func TestSetProcessGroup(t *testing.T) {
 	if a := cmd.SysProcAttr; a == nil || !a.Setpgid || a.Pdeathsig != syscall.SIGKILL {
 		t.Errorf("SysProcAttr = %+v, want Setpgid and Pdeathsig=SIGKILL", cmd.SysProcAttr)
 	}
-}
-
-// A process running the current executable is never treated as a leftover
-// child: on Linux children are recorded with the tool's own path.
-func TestKillIfMatchesNeverOwnExecutable(t *testing.T) {
-	self, _ := os.Executable()
-	plain := exec.Command(self, "-test.run", "^TestHelperSleep$")
-	plain.Env = append(os.Environ(), helperEnv+"=sleep")
-	if err := plain.Start(); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = plain.Process.Kill(); _ = plain.Wait() })
-	time.Sleep(200 * time.Millisecond)
-
-	if killed, err := KillIfMatches(plain.Process.Pid, self); killed || err != nil {
-		t.Errorf("own executable: killed=%v err=%v", killed, err)
-	}
-	if !procRunning(plain.Process.Pid) {
-		t.Error("process running the test binary was killed")
-	}
-}
-
-// A tool that was replaced on disk while it runs (a tool update) shows up as
-// "<path> (deleted)" in /proc; it is still the recorded executable.
-func TestKillIfMatchesDeletedExecutable(t *testing.T) {
-	// Keeps the name: a multi-call coreutils binary picks its role from it.
-	exe := filepath.Join(t.TempDir(), "sleep")
-	src, err := os.Open("/bin/sleep")
-	if err != nil {
-		t.Fatal(err)
-	}
-	dst, err := os.OpenFile(exe, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o755)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = io.Copy(dst, src)
-	src.Close()
-	if cerr := dst.Close(); err != nil || cerr != nil {
-		t.Fatal(err, cerr)
-	}
-
-	start := func() *exec.Cmd {
-		cmd := exec.Command(exe, "300")
-		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-		if err := cmd.Start(); err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
-		return cmd
-	}
-
-	// Removed and nothing in its place.
-	c := start()
-	if err := os.Remove(exe); err != nil {
-		t.Fatal(err)
-	}
-	if _, actual, ok := processExe(c.Process.Pid); !ok || actual != exe {
-		t.Errorf("processExe = %q, %v; want %q without the deleted marker", actual, ok, exe)
-	}
-	if killed, err := KillIfMatches(c.Process.Pid, filepath.Join(filepath.Dir(exe), "another")); killed || err != nil {
-		t.Errorf("other path: killed=%v err=%v", killed, err)
-	}
-	if killed, err := KillIfMatches(c.Process.Pid, exe); !killed || err != nil {
-		t.Errorf("deleted executable: killed=%v err=%v", killed, err)
-	}
-	_ = c.Wait()
-
-	// A zombie has no executable any more and is left alone.
-	z := exec.Command("/bin/true")
-	if err := z.Start(); err != nil {
-		t.Fatal(err)
-	}
-	time.Sleep(200 * time.Millisecond) // exited, not yet waited for
-	if killed, err := KillIfMatches(z.Process.Pid, "/bin/true"); killed || err != nil {
-		t.Errorf("zombie: killed=%v err=%v", killed, err)
-	}
-	_ = z.Wait()
 }
 
 func TestGuardMainIsAStub(t *testing.T) {

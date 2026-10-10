@@ -325,63 +325,6 @@ func TestJobDiesWithItsOwner(t *testing.T) {
 	waitGone(t, fmt.Sprintf("grandchild %d", sleeper), func() bool { return pidAlive(sleeper) }, 5*time.Second)
 }
 
-func TestKillIfMatches(t *testing.T) {
-	ping, err := exec.LookPath("ping")
-	if err != nil {
-		t.Skip("needs ping.exe")
-	}
-	cmdExe, err := exec.LookPath("cmd")
-	if err != nil {
-		t.Skip("needs cmd.exe")
-	}
-	c := exec.Command(ping, "-n", "300", "127.0.0.1")
-	if err := c.Start(); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = c.Process.Kill(); _ = c.Wait() })
-
-	if killed, err := KillIfMatches(c.Process.Pid, cmdExe); killed || err != nil {
-		t.Fatalf("wrong exe: killed=%v err=%v", killed, err)
-	}
-	if !pidAlive(c.Process.Pid) {
-		t.Fatal("process killed despite executable mismatch")
-	}
-	// The recorded path may differ in case from what the system reports.
-	if killed, err := KillIfMatches(c.Process.Pid, strings.ToUpper(ping)); !killed || err != nil {
-		t.Fatalf("matching exe: killed=%v err=%v", killed, err)
-	}
-	_ = c.Wait()
-	if c.ProcessState.ExitCode() != killExitCode {
-		t.Errorf("process state = %v, want killed", c.ProcessState)
-	}
-
-	// Gone pid, own pid and the system pids are never touched.
-	self := selfExe(t)
-	for _, pid := range []int{c.Process.Pid, os.Getpid(), 4, 0, -5} {
-		if killed, err := KillIfMatches(pid, self); killed || err != nil {
-			t.Errorf("KillIfMatches(%d) = %v, %v", pid, killed, err)
-		}
-	}
-}
-
-// There is no guard on Windows, so a process running the current executable
-// is an engine, a CLI or the desktop window: never a leftover tool.
-func TestKillIfMatchesSparesOwnExecutable(t *testing.T) {
-	self := selfExe(t)
-	c := exec.Command(self)
-	c.Env = helperEnviron("sleep")
-	if err := c.Start(); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = c.Process.Kill(); _ = c.Wait() })
-	if killed, err := KillIfMatches(c.Process.Pid, self); killed || err != nil {
-		t.Errorf("own executable: killed=%v err=%v", killed, err)
-	}
-	if !pidAlive(c.Process.Pid) {
-		t.Error("a process running the current executable was killed")
-	}
-}
-
 func TestSpawnDetached(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "spawned")
 	if err := SpawnDetached(selfExe(t), nil, helperEnviron("touch", helperFile+"="+marker)); err != nil {
